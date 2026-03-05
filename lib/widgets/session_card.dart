@@ -8,6 +8,10 @@ class SessionCard extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
   final bool isActive;
+  /// When non-null a "Cancel Session" button is shown for upcoming sessions.
+  final VoidCallback? onCancel;
+  /// When true the card is styled as a past/history card (no join button).
+  final bool isPast;
 
   const SessionCard({
     super.key,
@@ -18,6 +22,8 @@ class SessionCard extends StatelessWidget {
     required this.statusLabel,
     required this.statusColor,
     required this.isActive,
+    this.onCancel,
+    this.isPast = false,
   });
 
   @override
@@ -110,16 +116,35 @@ class SessionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isActive ? () {} : null,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                child: const Text('Join Meet'),
+            if (!isPast) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: isActive ? () {} : null,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Join Meet'),
+                    ),
+                  ),
+                  if (onCancel != null) ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: onCancel,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          foregroundColor: Colors.red[700],
+                          side: BorderSide(color: Colors.red[300]!),
+                        ),
+                        child: const Text('Cancel'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ),
+            ],
           ],
         ),
       ),

@@ -1,7 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:myapp/widgets/session_card.dart';
 
 import '../../models/app_user.dart';
+import '../../models/session_model.dart';
+import '../../repositories/session_repository.dart';
 import '../../services/user_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -13,23 +17,20 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _userService = UserService();
+  final _sessionRepository = SessionRepository();
 
   @override
   Widget build(BuildContext context) {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Profile'),
-        ),
+        appBar: AppBar(title: const Text('Profile')),
         body: const Center(child: Text('Not signed in')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-      ),
+      appBar: AppBar(title: const Text('Profile')),
       body: SafeArea(
         child: FutureBuilder<AppUser?>(
           future: _userService.getUser(currentUser.uid),
@@ -46,11 +47,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             return SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-              child: _ProfileContent(
-                name: name,
-                email: email,
-                memberSince: appUser?.createdAt,
-                isLoading: snapshot.connectionState == ConnectionState.waiting,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _ProfileContent(
+                    name: name,
+                    email: email,
+                    memberSince: appUser?.createdAt,
+                    isLoading:
+                        snapshot.connectionState == ConnectionState.waiting,
+                  ),
+                  const SizedBox(height: 24),
+                  _PastSessionsList(
+                    sessionRepository: _sessionRepository,
+                    studentId: currentUser.uid,
+                  ),
+                ],
               ),
             );
           },
@@ -197,6 +209,78 @@ class _ProfileContent extends StatelessWidget {
             ),
             child: const Text('Log out'),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Past Sessions ─────────────────────────────────────────────────────────────
+class _PastSessionsList extends StatelessWidget {
+  final SessionRepository sessionRepository;
+  final String studentId;
+
+  const _PastSessionsList({
+    required this.sessionRepository,
+    required this.studentId,
+  });
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return Colors.green;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Past Sessions',
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 12),
+        StreamBuilder<List<SessionModel>>(
+          stream: sessionRepository.pastSessions(studentId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final sessions = snapshot.data ?? [];
+            if (sessions.isEmpty) {
+              return Text(
+                'No past sessions yet.',
+                style: textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              );
+            }
+            return Column(
+              children: sessions.map((s) {
+                final dateStr = DateFormat.yMMMd().format(s.dateTime);
+                final timeStr = DateFormat.jm().format(s.dateTime);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: SessionCard(
+                    tutorName: s.tutorName ?? s.tutorId,
+                    subject: s.subject,
+                    date: dateStr,
+                    timeRange: timeStr,
+                    statusLabel: s.status,
+                    statusColor: _statusColor(s.status),
+                    isActive: false,
+                    isPast: true,
+                  ),
+                );
+              }).toList(),
+            );
+          },
         ),
       ],
     );

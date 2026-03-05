@@ -30,12 +30,140 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   List<String> _availableSlots = [];
+  int? _selectedSlotIndex;
   bool _loadingSlots = false;
+  // Dates (normalised to midnight) that have ≥1 available slot
+  Set<DateTime> _daysWithSlots = {};
 
   @override
   void initState() {
     super.initState();
     _notesController = TextEditingController();
+    // Pre-compute highlighted days for the current month
+    _loadAvailableDays(_focusedDay);
+  }
+
+  /// Fetches weekly availability from Firestore and computes which days in
+  /// [month] still have at least one free slot (not already booked).
+  Future<void> _loadAvailableDays(DateTime month) async {
+    try {
+      final tutorDoc = await FirebaseFirestore.instance
+          .collection('tutors')
+          .doc(widget.tutor.id)
+          .get();
+      final data = tutorDoc.data();
+      if (data == null) return;
+
+      final Map<String, dynamic>? weekly =
+          data['weekly_availability'] is Map
+              ? Map<String, dynamic>.from(
+                  data['weekly_availability'] as Map)
+              : null;
+      if (weekly == null || weekly.isEmpty) return;
+
+      // Collect all dates in the visible month
+      final firstDay = DateTime(month.year, month.month, 1);
+      final lastDay = DateTime(month.year, month.month + 1, 0);
+
+      // Fetch all booked sessions for this tutor in this month
+      final qs = await FirebaseFirestore.instance
+          .collection('sessions')
+          .where('tutorId', isEqualTo: widget.tutor.id)
+          .where('status', whereIn: ['pending', 'confirmed', 'booked'])
+          .get();
+
+      // Build a set of 'yyyy-MM-dd|HH:mm' strings that are occupied
+      final occupiedSlots = <String>{};
+      for (final doc in qs.docs) {
+        final d = doc.data();
+        final dateField = d['date']?.toString();
+        final timeField = d['time']?.toString();
+        if (dateField != null && timeField != null) {
+          occupiedSlots.add('$dateField|$timeField');
+        }
+      }
+
+      final available = <DateTime>{};
+      DateTime cursor = firstDay;
+      while (!cursor.isAfter(lastDay)) {
+        final slots = _generateSlotsForDay(cursor, weekly);
+        final dateStr = DateFormat('yyyy-MM-dd').format(cursor);
+        final hasFree = slots.any((s) {
+          final value = s.split('|')[0];
+          return !occupiedSlots.contains('$dateStr|$value');
+        });
+        if (hasFree) {
+          available.add(DateTime(cursor.year, cursor.month, cursor.day));
+        }
+        cursor = cursor.add(const Duration(days: 1));
+      }
+
+      setState(() => _daysWithSlots = available);
+    } catch (_) {}
+  }
+
+  /// Pure helper — generates 'HH:mm|display' slot strings for [date] given the
+  /// tutor's [weekly] availability map. No network calls.
+  List<String> _generateSlotsForDay(
+      DateTime date, Map<String, dynamic> weekly) {
+    final weekdayName = DateFormat.EEEE().format(date).toLowerCase();
+    final weekdayNameCap = DateFormat.EEEE().format(date);
+    dynamic avail;
+    if (weekly.containsKey(weekdayName)) {
+      avail = weekly[weekdayName];
+    } else if (weekly.containsKey(weekdayNameCap)) {
+      avail = weekly[weekdayNameCap];
+    } else if (weekly.containsKey(date.weekday.toString())) {
+      avail = weekly[date.weekday.toString()];
+    }
+    if (avail == null) return [];
+
+    final slots = <String>[];
+    if (avail is List) {
+      for (final t in avail) {
+        try {
+          DateTime dt = DateFormat('HH:mm').parseLoose(t.toString());
+          dt = DateTime(date.year, date.month, date.day, dt.hour, dt.minute);
+          slots.add('${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}');
+        } catch (_) {}
+      }
+    } else if (avail is Map &&
+        avail.isNotEmpty &&
+        avail.values.every((v) => v is String)) {
+      avail.forEach((start, end) {
+        try {
+          DateTime s = DateFormat('HH:mm').parseLoose(start);
+          DateTime e = DateFormat('HH:mm').parseLoose(end);
+          s = DateTime(date.year, date.month, date.day, s.hour, s.minute);
+          e = DateTime(date.year, date.month, date.day, e.hour, e.minute);
+          DateTime cur = s;
+          while (cur.isBefore(e)) {
+            slots.add('${DateFormat('HH:mm').format(cur)}|${DateFormat.jm().format(cur)}');
+            cur = cur.add(const Duration(minutes: 60));
+          }
+        } catch (_) {}
+      });
+    } else if (avail is Map) {
+      final start = avail['start']?.toString();
+      final end = avail['end']?.toString();
+      final dur = int.tryParse(
+              (avail['slotDuration'] ?? avail['slot_duration'] ?? 60)
+                  .toString()) ??
+          60;
+      if (start != null && end != null) {
+        DateTime s = DateFormat('HH:mm').parseLoose(start);
+        DateTime e = DateFormat('HH:mm').parseLoose(end);
+        s = DateTime(date.year, date.month, date.day, s.hour, s.minute);
+        e = DateTime(date.year, date.month, date.day, e.hour, e.minute);
+        DateTime cur = s;
+        while (cur.add(Duration(minutes: dur)).isBefore(e) ||
+            cur.add(Duration(minutes: dur)).isAtSameMomentAs(e)) {
+          slots.add('${DateFormat('HH:mm').format(cur)}|${DateFormat.jm().format(cur)}');
+          cur = cur.add(Duration(minutes: dur));
+        }
+      }
+    }
+    return slots;
   }
 
   @override
@@ -45,100 +173,86 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   }
 
   Future<void> _loadSlotsForDate(DateTime date) async {
+    print('=== _loadSlotsForDate called ===');
     setState(() => _loadingSlots = true);
 
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    print('Loading slots for date: $dateStr');
 
     try {
-      // Read tutor document for weekly availability
-      final tutorDoc = await FirebaseFirestore.instance.collection('tutors').doc(widget.tutor.id).get();
+      print('Fetching tutor data for ID: ${widget.tutor.id}');
+      final tutorDoc = await FirebaseFirestore.instance
+          .collection('tutors')
+          .doc(widget.tutor.id)
+          .get();
       final data = tutorDoc.data();
+      print('Tutor document exists: ${tutorDoc.exists}');
 
-      // Support multiple availability shapes. Expecting a map like:
-      // { 'monday': { 'start': '09:00', 'end': '17:00', 'slotDuration': 60 }, ... }
-      Map<String, dynamic>? weekly = (data != null && data['weekly_availability'] is Map)
-          ? Map<String, dynamic>.from(data['weekly_availability'] as Map)
-          : null;
-
-      // get availability for this weekday
-      final weekdayName = DateFormat.EEEE().format(date).toLowerCase();
-      Map<String, dynamic>? avail;
-      if (weekly != null) {
-        if (weekly.containsKey(weekdayName)) {
-          avail = Map<String, dynamic>.from(weekly[weekdayName] as Map);
-        } else if (weekly.containsKey(date.weekday.toString())) {
-          avail = Map<String, dynamic>.from(weekly[date.weekday.toString()] as Map);
-        }
+      if (data == null) {
+        print('ERROR: Tutor data is null');
+        setState(() {
+          _availableSlots = [];
+          _loadingSlots = false;
+        });
+        return;
       }
 
-      List<String> slots = [];
-      if (avail != null) {
-        final start = avail['start']?.toString();
-        final end = avail['end']?.toString();
-        final duration = (avail['slotDuration'] ?? avail['slot_duration'] ?? 60);
-        final slotDuration = int.tryParse(duration.toString()) ?? 60;
+      print('Firestore weekly_availability: ${data['weekly_availability']}');
 
-        if (start != null && end != null) {
-          // parse times as HH:mm
-          DateTime startDt = DateFormat('HH:mm').parseLoose(start);
-          DateTime endDt = DateFormat('HH:mm').parseLoose(end);
+      final Map<String, dynamic>? weekly =
+          data['weekly_availability'] is Map
+              ? Map<String, dynamic>.from(data['weekly_availability'] as Map)
+              : null;
 
-          // assign to the selected date
-          startDt = DateTime(date.year, date.month, date.day, startDt.hour, startDt.minute);
-          endDt = DateTime(date.year, date.month, date.day, endDt.hour, endDt.minute);
+      final slots = weekly != null ? _generateSlotsForDay(date, weekly) : <String>[];
+      print('Generated slots: $slots');
 
-          DateTime cur = startDt;
-          while (cur.add(Duration(minutes: slotDuration)).isBefore(endDt) || cur.add(Duration(minutes: slotDuration)).isAtSameMomentAs(endDt)) {
-            final value = DateFormat('HH:mm').format(cur);
-            final display = DateFormat.jm().format(cur);
-            slots.add('$value|$display');
-            cur = cur.add(Duration(minutes: slotDuration));
-          }
-        }
-      }
-
-      // Query bookings for this tutor on the selected date
-      final bookingsSnap = await FirebaseFirestore.instance
-          .collection('bookings')
+      // Query booked sessions for this tutor on the selected date
+      print('Querying sessions for tutorId: ${widget.tutor.id}, date: $dateStr');
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
           .where('date', isEqualTo: dateStr)
+          .where('status', whereIn: ['confirmed', 'pending', 'booked'])
           .get();
 
+      print('Query returned ${querySnapshot.docs.length} documents');
+      for (final doc in querySnapshot.docs) {
+        print('Session doc data: ${doc.data()}');
+      }
+
       final occupied = <String>{};
-      for (final doc in bookingsSnap.docs) {
-        final status = (doc.data()['status'] ?? '').toString().toLowerCase();
-        if (status == 'confirmed' || status == 'pending') {
-          final time = doc.data()['time']?.toString() ?? '';
-          // normalize to HH:mm if possible
+      for (final doc in querySnapshot.docs) {
+        final d = doc.data();
+        final time = d['time']?.toString();
+        if (time != null) {
           try {
-            final parsed = DateFormat.jm().parseLoose(time);
-            final normalized = DateFormat('HH:mm').format(parsed);
-            occupied.add(normalized);
+            occupied.add(DateFormat('HH:mm').format(DateFormat('HH:mm').parseLoose(time)));
           } catch (_) {
-            // fallback: accept direct value
-            occupied.add(time);
+            try {
+              occupied.add(DateFormat('HH:mm').format(DateFormat.jm().parseLoose(time)));
+            } catch (_) {
+              occupied.add(time);
+            }
           }
         }
       }
 
-      final available = <String>[];
-      for (final s in slots) {
-        final parts = s.split('|');
-        final value = parts[0];
-        final display = parts[1];
-        if (!occupied.contains(value)) {
-          available.add('$value|$display');
-        }
-      }
+      final available = slots
+          .where((s) => !occupied.contains(s.split('|')[0]))
+          .toList();
 
-      setState(() {
-        _availableSlots = available.map((e) => e).toList();
-      });
+      print('Occupied slots: $occupied');
+      print('Available slots: $available');
+
+      setState(() => _availableSlots = available);
+      print('UI updated with ${_availableSlots.length} available slots');
     } catch (e) {
-      // on error, clear slots
+      print('ERROR in _loadSlotsForDate: $e');
       setState(() => _availableSlots = []);
     } finally {
       setState(() => _loadingSlots = false);
+      print('=== _loadSlotsForDate finished ===');
     }
   }
 
@@ -146,7 +260,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final docId = '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
 
-    final docRef = FirebaseFirestore.instance.collection('bookings').doc(docId);
+    final docRef = FirebaseFirestore.instance.collection('sessions').doc(docId);
 
     try {
       await FirebaseFirestore.instance.runTransaction((tx) async {
@@ -163,6 +277,12 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           'date': dateStr,
           'time': slotValue,
           'timeDisplay': slotDisplay,
+          // dateTime Timestamp so SessionRepository can sort/filter
+          'dateTime': Timestamp.fromDate(
+            DateTime(date.year, date.month, date.day,
+                int.parse(slotValue.split(':')[0]),
+                int.parse(slotValue.split(':')[1])),
+          ),
           'subject': widget.tutor.subjects[_selectedSubjectIndex],
           'notes': _notesController.text,
           'status': 'pending',
@@ -171,7 +291,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         });
       });
 
-      // on success navigate to confirmation
+      // on success reload available days and navigate to confirmation
+      _loadAvailableDays(_focusedDay);
+      if (!context.mounted) return;
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => ConfirmationScreen(
@@ -187,8 +309,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to create booking: ${e.toString()}')),
       );
-      // reload slots to reflect any change
+      // reload slots and day highlights to reflect any change
       await _loadSlotsForDate(date);
+      _loadAvailableDays(_focusedDay);
     }
   }
 
@@ -210,10 +333,36 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
             setState(() {
               _selectedDay = selected;
               _focusedDay = focused;
+              _selectedSlotIndex = null;
             });
             _loadSlotsForDate(selected);
           },
+          onPageChanged: (focused) {
+            setState(() => _focusedDay = focused);
+            _loadAvailableDays(focused);
+          },
           calendarFormat: CalendarFormat.month,
+          // Mark days that have available slots with a green dot
+          eventLoader: (day) {
+            final normalised = DateTime(day.year, day.month, day.day);
+            return _daysWithSlots.contains(normalised) ? [true] : [];
+          },
+          calendarBuilders: CalendarBuilders(
+            markerBuilder: (context, day, events) {
+              if (events.isEmpty) return const SizedBox.shrink();
+              return Positioned(
+                bottom: 4,
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            },
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -234,19 +383,21 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: _availableSlots.map((s) {
+            children: List.generate(_availableSlots.length, (i) {
+              final s = _availableSlots[i];
               final parts = s.split('|');
               final value = parts[0];
               final display = parts[1];
               return TimeSlotButton(
                 label: display,
-                isSelected: false,
-                onTap: () async {
-                  if (_selectedDay == null) return;
-                  await _createBooking(context, _selectedDay!, value, display);
+                isSelected: _selectedSlotIndex == i,
+                onTap: () {
+                  setState(() {
+                    _selectedSlotIndex = i;
+                  });
                 },
               );
-            }).toList(),
+            }),
           ),
       ],
     );
@@ -312,18 +463,18 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           ),
           _BottomBookingBar(
             price: widget.tutor.hourlyRate,
-            onConfirm: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => ConfirmationScreen(
-                    tutor: widget.tutor,
-                    date: _selectedDay != null ? DateFormat.yMMMMd().format(_selectedDay!) : 'N/A',
-                    time: 'N/A',
-                    selectedSubject: widget.tutor.subjects[_selectedSubjectIndex],
-                    notes: _notesController.text,
-                  ),
-                ),
-              );
+            onConfirm: () async {
+              if (_selectedDay == null || _selectedSlotIndex == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Please select a date and time slot.')),
+                );
+                return;
+              }
+              final s = _availableSlots[_selectedSlotIndex!];
+              final parts = s.split('|');
+              final value = parts[0];
+              final display = parts[1];
+              await _createBooking(context, _selectedDay!, value, display);
             },
           ),
         ],

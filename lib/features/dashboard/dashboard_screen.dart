@@ -1,7 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
+import '../../models/session_model.dart';
 import '../../models/tutor_model.dart';
+import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
 import '../../services/user_service.dart';
 import '../../widgets/category_chip.dart';
@@ -21,6 +24,7 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final _userService = UserService();
   final _tutorsRepository = TutorsRepository();
+  final _sessionRepository = SessionRepository();
 
   final _categories = const [
     (id: 'all', label: 'All', icon: Icons.grid_view_rounded),
@@ -284,24 +288,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  SessionCard(
-                    tutorName: 'Sarah Lee',
-                    subject: 'Calculus I — Derivatives',
-                    date: 'Today',
-                    timeRange: '10:00 – 11:00 AM',
-                    statusLabel: 'Confirmed',
-                    statusColor: Colors.green[600]!,
-                    isActive: true,
-                  ),
-                  const SizedBox(height: 12),
-                  SessionCard(
-                    tutorName: 'James Miller',
-                    subject: 'Physics — Kinematics Review',
-                    date: 'Tomorrow',
-                    timeRange: '2:00 – 3:00 PM',
-                    statusLabel: 'Scheduled',
-                    statusColor: Colors.orange[700]!,
-                    isActive: false,
+                  _UpcomingSessionsList(
+                    sessionRepository: _sessionRepository,
                   ),
                 ],
               ),
@@ -309,6 +297,94 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _UpcomingSessionsList extends StatelessWidget {
+  final SessionRepository sessionRepository;
+
+  const _UpcomingSessionsList({required this.sessionRepository});
+
+  Future<void> _confirmCancel(
+      BuildContext context, SessionModel session) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel Session'),
+        content: const Text(
+            'Are you sure you want to cancel this session?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Yes, Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await sessionRepository.cancelSession(session.id);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Session cancelled.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      return const Text('Sign in to see your sessions.');
+    }
+
+    return StreamBuilder<List<SessionModel>>(
+      stream: sessionRepository.upcomingSessions(currentUser.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final sessions = snapshot.data ?? [];
+        if (sessions.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'No upcoming sessions yet. Book a tutor to get started.',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Colors.grey[600]),
+            ),
+          );
+        }
+        return Column(
+          children: sessions.map((s) {
+            final dateStr = DateFormat.yMMMd().format(s.dateTime);
+            final timeStr = DateFormat.jm().format(s.dateTime);
+            final isNow = s.dateTime.difference(DateTime.now()).inMinutes <= 30
+                && s.dateTime.isAfter(DateTime.now());
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: SessionCard(
+                tutorName: s.tutorName ?? s.tutorId,
+                subject: s.subject,
+                date: dateStr,
+                timeRange: timeStr,
+                statusLabel: s.status,
+                statusColor: Colors.green[600]!,
+                isActive: isNow,
+                onCancel: () => _confirmCancel(context, s),
+              ),
+            );
+          }).toList(),
+        );
+      },
     );
   }
 }
