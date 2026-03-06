@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:myapp/widgets/session_card.dart';
 
+import '../admin/payment_verification_screen.dart';
 import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
@@ -54,6 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     name: name,
                     email: email,
                     memberSince: appUser?.createdAt,
+                    role: appUser?.role ?? 'student',
                     isLoading:
                         snapshot.connectionState == ConnectionState.waiting,
                   ),
@@ -76,12 +78,14 @@ class _ProfileContent extends StatelessWidget {
   final String name;
   final String email;
   final DateTime? memberSince;
+  final String role;
   final bool isLoading;
 
   const _ProfileContent({
     required this.name,
     required this.email,
     this.memberSince,
+    this.role = 'student',
     this.isLoading = false,
   });
 
@@ -183,6 +187,33 @@ class _ProfileContent extends StatelessWidget {
             ],
           ),
         ),
+        if (role.toLowerCase() == 'admin') ...[
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Admin',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const PaymentVerificationScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.verified_user_outlined),
+              label: const Text('Open Payment Verification'),
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         Align(
           alignment: Alignment.centerLeft,

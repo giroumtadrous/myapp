@@ -1,32 +1,61 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
-class BookingsScreen extends StatelessWidget {
+import '../../models/session_model.dart';
+import '../../repositories/payment_repository.dart';
+import '../../repositories/session_repository.dart';
+import '../../widgets/session_card.dart';
+import 'manual_payment_screen.dart';
+
+class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
+
+  @override
+  State<BookingsScreen> createState() => _BookingsScreenState();
+}
+
+class _BookingsScreenState extends State<BookingsScreen> {
+  final SessionRepository _sessionRepository = SessionRepository();
+  final PaymentRepository _paymentRepository = PaymentRepository();
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'booked':
+        return Colors.green;
+      case 'pending_payment_verification':
+        return Colors.orange;
+      case 'payment_rejected':
+        return Colors.red;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'pending_payment_verification':
+        return 'Pending';
+      case 'payment_rejected':
+        return 'Payment Rejected';
+      default:
+        return status;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final user = FirebaseAuth.instance.currentUser;
 
-    final bookings = [
-      {
-        'tutor': 'Sarah Lee',
-        'subject': 'Calculus',
-        'date': 'Tomorrow',
-        'time': '10:00 AM',
-      },
-      {
-        'tutor': 'James Miller',
-        'subject': 'Physics',
-        'date': 'This Friday',
-        'time': '2:00 PM',
-      },
-      {
-        'tutor': 'Priya Patel',
-        'subject': 'Computer Science',
-        'date': 'Next Monday',
-        'time': '5:00 PM',
-      },
-    ];
+    if (user == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('My bookings')),
+        body: const Center(child: Text('Please sign in to view bookings.')),
+      );
+    }
+
 
     return Scaffold(
       appBar: AppBar(
@@ -45,58 +74,129 @@ class BookingsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: bookings.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final booking = bookings[index];
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              booking['tutor'] as String,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
+              StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: _paymentRepository.userNotifications(user.uid),
+                builder: (context, snapshot) {
+                  final docs = snapshot.data?.docs ??
+                      <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                  final unread = docs.where((d) {
+                    final value = d.data()['read'];
+                    return value != true;
+                  }).toList();
+
+                  if (unread.isEmpty) return const SizedBox.shrink();
+
+                  return Card(
+                    color: Colors.amber[50],
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: unread.take(2).map((doc) {
+                          final data = doc.data();
+                          final title =
+                              (data['title'] ?? 'Payment update').toString();
+                          final message = (data['message'] ?? '').toString();
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(title),
+                            subtitle: Text(message),
+                            trailing: TextButton(
+                              onPressed: () {
+                                _paymentRepository.markNotificationRead(doc.id);
+                              },
+                              child: const Text('Mark read'),
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              booking['subject'] as String,
-                              style: textTheme.bodyMedium?.copyWith(
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.calendar_today_outlined,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  booking['date'] as String,
-                                  style: textTheme.bodyMedium,
-                                ),
-                                const SizedBox(width: 16),
-                                const Icon(
-                                  Icons.schedule_outlined,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  booking['time'] as String,
-                                  style: textTheme.bodyMedium,
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+                          );
+                        }).toList(),
                       ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: StreamBuilder<List<SessionModel>>(
+                  stream: _sessionRepository.upcomingSessions(user.uid),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final sessions = snapshot.data ?? [];
+                    if (sessions.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No upcoming sessions yet.',
+                          style: textTheme.bodyMedium
+                              ?.copyWith(color: Colors.grey[600]),
+                        ),
+                      );
+                    }
+
+                    return ListView.separated(
+                      itemCount: sessions.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final session = sessions[index];
+                        final isActive = session.status == 'booked' &&
+                            session.dateTime.difference(DateTime.now()).inMinutes <= 30 &&
+                            session.dateTime.isAfter(DateTime.now());
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SessionCard(
+                              tutorName: session.tutorName ?? session.tutorId,
+                              subject: session.subject,
+                              date: DateFormat.yMMMd().format(session.dateTime),
+                              timeRange: DateFormat.jm().format(session.dateTime),
+                              statusLabel: _statusLabel(session.status),
+                              statusColor: _statusColor(session.status),
+                              isActive: isActive,
+                            ),
+                            if (session.status == 'pending_payment_verification')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  'Waiting for payment confirmation',
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: Colors.orange[800],
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            if (session.status == 'payment_rejected')
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => ManualPaymentScreen(
+                                          sessionId: session.id,
+                                          tutorId: session.tutorId,
+                                          subject: session.subject,
+                                          date: DateFormat('yyyy-MM-dd')
+                                              .format(session.dateTime),
+                                          time: DateFormat('HH:mm')
+                                              .format(session.dateTime),
+                                          timeDisplay:
+                                              DateFormat.jm().format(session.dateTime),
+                                          sessionDateTime: session.dateTime,
+                                          amount: session.amount,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.upload_file_outlined),
+                                  label: const Text('Upload Correct Payment Proof'),
+                                ),
+                              ),
+                          ],
+                        );
+                      },
                     );
                   },
                 ),

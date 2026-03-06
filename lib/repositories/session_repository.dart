@@ -9,7 +9,12 @@ class SessionRepository {
     return _firestore
         .collection('sessions')
         .where('studentId', isEqualTo: studentId)
-        .where('status', whereIn: ['booked', 'pending'])
+        .where('status', whereIn: [
+          'booked',
+          'pending',
+          'pending_payment_verification',
+          'payment_rejected',
+        ])
         .snapshots()
         .asyncMap((snap) => _enrichWithTutorNames(
               snap.docs

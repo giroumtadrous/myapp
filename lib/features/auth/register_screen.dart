@@ -90,6 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             .set({
           'name': name,
           'email': email,
+          'role': 'student',
           'createdAt': FieldValue.serverTimestamp(),
   });
 /*

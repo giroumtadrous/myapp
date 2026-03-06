@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/tutor_model.dart';
-import 'confirmation_screen.dart';
+import 'manual_payment_screen.dart';
 
 class BookingScreen extends StatefulWidget {
   final Tutor tutor;
@@ -261,16 +261,31 @@ class _BookingScreenState extends State<BookingScreen> {
                   onPressed: _selectedTime == null
                       ? null
                       : () {
+                          final date = DateFormat('yyyy-MM-dd').format(_selectedDate);
+                          final time = _selectedTime!;
+                          final sessionId =
+                              '${widget.tutor.id}_${date}_${time.replaceAll(':', '')}';
+                          final timeDisplay = DateFormat.jm().format(
+                            DateFormat('HH:mm').parse(time),
+                          );
 
                           Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => ConfirmationScreen(
-                                tutor: widget.tutor,
-                                date: DateFormat('yyyy-MM-dd')
-                                    .format(_selectedDate),
-                                time: _selectedTime!,
-                                selectedSubject: widget.tutor.subjects.first,
-                                notes: '',
+                              builder: (_) => ManualPaymentScreen(
+                                sessionId: sessionId,
+                                tutorId: widget.tutor.id,
+                                subject: widget.tutor.subjects.first,
+                                date: date,
+                                time: time,
+                                timeDisplay: timeDisplay,
+                                sessionDateTime: DateTime(
+                                  _selectedDate.year,
+                                  _selectedDate.month,
+                                  _selectedDate.day,
+                                  int.parse(time.split(':')[0]),
+                                  int.parse(time.split(':')[1]),
+                                ),
+                                amount: widget.tutor.hourlyRate,
                               ),
                             ),
                           );

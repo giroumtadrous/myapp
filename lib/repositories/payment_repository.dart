@@ -1,0 +1,189 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../models/payment_model.dart';
+
+class PaymentRepository {
+  PaymentRepository({
+    FirebaseFirestore? firestore,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance;
+
+  final FirebaseFirestore _firestore;
+
+  static const List<String> blockingStatuses = <String>[
+    'pending_payment_verification',
+    'booked',
+    'pending',
+    'confirmed',
+  ];
+
+  Future<void> submitManualPayment({
+    required String sessionId,
+    required String studentId,
+    required String tutorId,
+    required String subject,
+    required DateTime sessionDateTime,
+    required String date,
+    required String time,
+    required String timeDisplay,
+    required double amount,
+    required DateTime transferTime,
+    required String screenshotUrl,
+    String? note,
+  }) async {
+    final startedAt = DateTime.now();
+    print('[Payment] submitManualPayment started for sessionId=$sessionId');
+
+    try {
+      if (screenshotUrl.trim().isEmpty) {
+        throw Exception('Screenshot URL cannot be empty.');
+      }
+
+      final paymentRef = _firestore.collection('payments').doc();
+      final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+      print('[Payment] Transaction step started');
+      await _firestore.runTransaction((tx) async {
+        try {
+          print('[Payment][Tx] Reading session doc: ${sessionRef.id}');
+          final existingSession = await tx.get(sessionRef);
+          if (existingSession.exists) {
+            final data = existingSession.data() ?? <String, dynamic>{};
+            final existingStatus = (data['status'] ?? '').toString();
+
+            // If the slot is currently in a blocking state, another student cannot use it.
+            if (blockingStatuses.contains(existingStatus)) {
+              throw Exception('This time slot is no longer available.');
+            }
+          }
+          print('[Payment][Tx] Writing payment doc: ${paymentRef.id}');
+          tx.set(paymentRef, {
+            'studentId': studentId,
+            'tutorId': tutorId,
+            'sessionId': sessionId,
+            'amount': amount,
+            'transferTime': Timestamp.fromDate(transferTime),
+            'screenshotUrl': screenshotUrl,
+            'status': 'pending',
+            'note': note?.trim() ?? '',
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+
+          final sessionData = <String, dynamic>{
+            'tutorId': tutorId,
+            'studentId': studentId,
+            'subject': subject,
+            'date': date,
+            'time': time,
+            'timeDisplay': timeDisplay,
+            'dateTime': Timestamp.fromDate(sessionDateTime),
+            'hourlyRate': amount,
+            'paymentId': paymentRef.id,
+            'status': 'pending_payment_verification',
+          };
+
+          if (existingSession.exists) {
+            print('[Payment][Tx] Updating existing session doc: ${sessionRef.id}');
+            tx.update(sessionRef, {
+              ...sessionData,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          } else {
+            print('[Payment][Tx] Creating new session doc: ${sessionRef.id}');
+            tx.set(sessionRef, {
+              ...sessionData,
+              'createdAt': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          print('[Payment][Tx] Transaction body failed: $e');
+          rethrow;
+        }
+      }).timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw TimeoutException(
+            'Booking transaction timed out. Please try again.',
+          );
+        },
+      );
+
+      final totalMs = DateTime.now().difference(startedAt).inMilliseconds;
+      print('[Payment] Transaction step done. submitManualPayment finished in ${totalMs}ms');
+    } on FirebaseException catch (e) {
+      print('[Payment] FirebaseException in submitManualPayment: code=${e.code}, message=${e.message}');
+      throw Exception(e.message ?? 'Firebase error while submitting payment.');
+    } on TimeoutException catch (e) {
+      print('[Payment] TimeoutException in submitManualPayment: ${e.message}');
+      throw Exception(e.message ?? 'The request timed out. Please try again.');
+    } catch (e) {
+      print('[Payment] Unknown error in submitManualPayment: $e');
+      rethrow;
+    }
+  }
+
+  Stream<List<PaymentModel>> pendingPayments() {
+    return _firestore
+        .collection('payments')
+        .where('status', isEqualTo: 'pending')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((snap) => snap.docs.map(PaymentModel.fromFirestore).toList());
+  }
+
+  Future<void> verifyPayment({
+    required String paymentId,
+    required String sessionId,
+    required String studentId,
+    required bool approved,
+  }) async {
+    final paymentRef = _firestore.collection('payments').doc(paymentId);
+    final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+    final paymentStatus = approved ? 'approved' : 'rejected';
+    final sessionStatus = approved ? 'booked' : 'payment_rejected';
+
+    await _firestore.runTransaction((tx) async {
+      tx.update(paymentRef, {
+        'status': paymentStatus,
+        'verifiedAt': FieldValue.serverTimestamp(),
+      });
+
+      tx.update(sessionRef, {
+        'status': sessionStatus,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      tx.set(_firestore.collection('notifications').doc(), {
+        'userId': studentId,
+        'sessionId': sessionId,
+        'paymentId': paymentId,
+        'title': approved ? 'Payment approved' : 'Payment rejected',
+        'message': approved
+            ? 'Your payment was verified. Your session is now confirmed.'
+            : 'Payment proof was rejected. Please upload a correct screenshot.',
+        'type': approved ? 'payment_approved' : 'payment_rejected',
+        'read': false,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> userNotifications(String userId) {
+    return _firestore
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(20)
+        .snapshots();
+  }
+
+  Future<void> markNotificationRead(String notificationId) async {
+    await _firestore.collection('notifications').doc(notificationId).update({
+      'read': true,
+    });
+  }
+
+
+}

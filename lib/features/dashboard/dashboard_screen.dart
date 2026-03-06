@@ -306,6 +306,19 @@ class _UpcomingSessionsList extends StatelessWidget {
 
   const _UpcomingSessionsList({required this.sessionRepository});
 
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'booked':
+        return Colors.green[600]!;
+      case 'pending_payment_verification':
+        return Colors.orange[700]!;
+      case 'payment_rejected':
+        return Colors.red[700]!;
+      default:
+        return Colors.blueGrey;
+    }
+  }
+
   Future<void> _confirmCancel(
       BuildContext context, SessionModel session) async {
     final confirm = await showDialog<bool>(
@@ -367,7 +380,8 @@ class _UpcomingSessionsList extends StatelessWidget {
           children: sessions.map((s) {
             final dateStr = DateFormat.yMMMd().format(s.dateTime);
             final timeStr = DateFormat.jm().format(s.dateTime);
-            final isNow = s.dateTime.difference(DateTime.now()).inMinutes <= 30
+            final isNow = s.status == 'booked' &&
+                s.dateTime.difference(DateTime.now()).inMinutes <= 30
                 && s.dateTime.isAfter(DateTime.now());
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -377,7 +391,7 @@ class _UpcomingSessionsList extends StatelessWidget {
                 date: dateStr,
                 timeRange: timeStr,
                 statusLabel: s.status,
-                statusColor: Colors.green[600]!,
+                statusColor: _statusColor(s.status),
                 isActive: isNow,
                 onCancel: () => _confirmCancel(context, s),
               ),

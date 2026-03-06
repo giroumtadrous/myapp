@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 
@@ -8,7 +7,7 @@ import '../../models/tutor_model.dart';
 import '../../widgets/expertise_chip.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/time_slot_button.dart';
-import 'confirmation_screen.dart';
+import 'manual_payment_screen.dart';
 
 class TutorBookingScreen extends StatefulWidget {
   final Tutor tutor;
@@ -69,7 +68,12 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       final qs = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
-          .where('status', whereIn: ['pending', 'confirmed', 'booked'])
+          .where('status', whereIn: [
+            'pending',
+            'confirmed',
+            'booked',
+            'pending_payment_verification',
+          ])
           .get();
 
       // Build a set of 'yyyy-MM-dd|HH:mm' strings that are occupied
@@ -213,7 +217,12 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
           .where('date', isEqualTo: dateStr)
-          .where('status', whereIn: ['confirmed', 'pending', 'booked'])
+          .where('status', whereIn: [
+            'confirmed',
+            'pending',
+            'booked',
+            'pending_payment_verification',
+          ])
           .get();
 
       print('Query returned ${querySnapshot.docs.length} documents');
@@ -256,63 +265,32 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     }
   }
 
-  Future<void> _createBooking(BuildContext context, DateTime date, String slotValue, String slotDisplay) async {
+  Future<void> _createBooking(BuildContext context, DateTime date,
+      String slotValue, String slotDisplay) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     final docId = '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
+    final sessionDateTime = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(slotValue.split(':')[0]),
+      int.parse(slotValue.split(':')[1]),
+    );
 
-    final docRef = FirebaseFirestore.instance.collection('sessions').doc(docId);
-
-    try {
-      await FirebaseFirestore.instance.runTransaction((tx) async {
-        final existing = await tx.get(docRef);
-        if (existing.exists) {
-          throw Exception('Slot already booked');
-        }
-
-        final user = FirebaseAuth.instance.currentUser;
-
-        tx.set(docRef, {
-          'tutorId': widget.tutor.id,
-          'studentId': user?.uid ?? '',
-          'date': dateStr,
-          'time': slotValue,
-          'timeDisplay': slotDisplay,
-          // dateTime Timestamp so SessionRepository can sort/filter
-          'dateTime': Timestamp.fromDate(
-            DateTime(date.year, date.month, date.day,
-                int.parse(slotValue.split(':')[0]),
-                int.parse(slotValue.split(':')[1])),
-          ),
-          'subject': widget.tutor.subjects[_selectedSubjectIndex],
-          'notes': _notesController.text,
-          'status': 'pending',
-          'createdAt': FieldValue.serverTimestamp(),
-          'hourlyRate': widget.tutor.hourlyRate,
-        });
-      });
-
-      // on success reload available days and navigate to confirmation
-      _loadAvailableDays(_focusedDay);
-      if (!context.mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ConfirmationScreen(
-            tutor: widget.tutor,
-            date: DateFormat.yMMMMd().format(date),
-            time: slotDisplay,
-            selectedSubject: widget.tutor.subjects[_selectedSubjectIndex],
-            notes: _notesController.text,
-          ),
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ManualPaymentScreen(
+          sessionId: docId,
+          tutorId: widget.tutor.id,
+          subject: widget.tutor.subjects[_selectedSubjectIndex],
+          date: dateStr,
+          time: slotValue,
+          timeDisplay: slotDisplay,
+          sessionDateTime: sessionDateTime,
+          amount: widget.tutor.hourlyRate,
         ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create booking: ${e.toString()}')),
-      );
-      // reload slots and day highlights to reflect any change
-      await _loadSlotsForDate(date);
-      _loadAvailableDays(_focusedDay);
-    }
+      ),
+    );
   }
 
   Widget _buildCalendarSection() {
@@ -386,7 +364,6 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
             children: List.generate(_availableSlots.length, (i) {
               final s = _availableSlots[i];
               final parts = s.split('|');
-              final value = parts[0];
               final display = parts[1];
               return TimeSlotButton(
                 label: display,
@@ -785,131 +762,6 @@ class _NotesSection extends StatelessWidget {
             ),
             contentPadding: const EdgeInsets.all(16),
           ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AvailabilitySection extends StatelessWidget {
-  final String monthLabel;
-  final List<String> weekDates;
-  final List<String> timeSlots;
-  final int selectedDateIndex;
-  final int selectedTimeIndex;
-  final ValueChanged<int> onDateSelected;
-  final ValueChanged<int> onTimeSelected;
-
-  const _AvailabilitySection({
-    required this.monthLabel,
-    required this.weekDates,
-    required this.timeSlots,
-    required this.selectedDateIndex,
-    required this.selectedTimeIndex,
-    required this.onDateSelected,
-    required this.onTimeSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Availability',
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              monthLabel,
-              style: textTheme.bodySmall?.copyWith(
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        SizedBox(
-          height: 48,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: weekDates.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final isSelected = index == selectedDateIndex;
-              return GestureDetector(
-                onTap: () => onDateSelected(index),
-                child: Container(
-                  width: 72,
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? colorScheme.primary
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: isSelected
-                          ? colorScheme.primary
-                          : Colors.grey.shade300,
-                    ),
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: colorScheme.primary.withOpacity(0.25),
-                              blurRadius: 8,
-                              offset: const Offset(0, 4),
-                            )
-                          ]
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            )
-                          ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      weekDates[index],
-                      style: textTheme.bodySmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: isSelected
-                            ? Colors.white
-                            : Colors.grey[800],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          'Available Times - ${weekDates[selectedDateIndex]}',
-          style: textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[800],
-          ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (var i = 0; i < timeSlots.length; i++)
-              TimeSlotButton(
-                label: timeSlots[i],
-                isSelected: i == selectedTimeIndex,
-                onTap: () => onTimeSelected(i),
-              ),
-          ],
         ),
       ],
     );

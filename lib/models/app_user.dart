@@ -6,12 +6,14 @@ class AppUser {
   final String name;
   final String email;
   final DateTime createdAt;
+  final String role;
 
   const AppUser({
     required this.id,
     required this.name,
     required this.email,
     required this.createdAt,
+    this.role = 'student',
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -27,6 +29,7 @@ class AppUser {
       createdAt: createdAt is Timestamp
           ? createdAt.toDate()
           : DateTime.now(),
+      role: (data['role'] ?? 'student').toString(),
     );
   }
 
@@ -34,5 +37,6 @@ class AppUser {
         'name': name,
         'email': email,
         'createdAt': Timestamp.fromDate(createdAt),
+        'role': role,
       };
 }
