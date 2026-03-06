@@ -45,6 +45,38 @@ class SessionRepository {
     await _firestore.collection('sessions').doc(sessionId).delete();
   }
 
+  // ── TUTOR QUERIES ────────────────────────────────────────────────────────
+
+  // ── Upcoming sessions for a tutor (dateTime >= now) ──────────────────────
+  Stream<List<SessionModel>> tutorUpcomingSessions(String tutorId) {
+    return _firestore
+        .collection('sessions')
+        .where('tutorId', isEqualTo: tutorId)
+        .snapshots()
+        .asyncMap((snap) => _enrichWithStudentNames(
+              snap.docs
+                  .map((d) => SessionModel.fromFirestore(d))
+                  .where((s) => s.dateTime.isAfter(DateTime.now()))
+                  .toList()
+                ..sort((a, b) => a.dateTime.compareTo(b.dateTime)),
+            ));
+  }
+
+  // ── Past sessions for a tutor (dateTime < now) ────────────────────────────
+  Stream<List<SessionModel>> tutorPastSessions(String tutorId) {
+    return _firestore
+        .collection('sessions')
+        .where('tutorId', isEqualTo: tutorId)
+        .snapshots()
+        .asyncMap((snap) => _enrichWithStudentNames(
+              snap.docs
+                  .map((d) => SessionModel.fromFirestore(d))
+                  .where((s) => s.dateTime.isBefore(DateTime.now()))
+                  .toList()
+                ..sort((a, b) => b.dateTime.compareTo(a.dateTime)),
+            ));
+  }
+
   // ── Fetch tutor name for a single tutorId ────────────────────────────────
   Future<String> _tutorName(String tutorId) async {
     if (tutorId.isEmpty) return 'Unknown Tutor';
@@ -52,6 +84,20 @@ class SessionRepository {
     if (!doc.exists) return 'Unknown Tutor';
     final data = doc.data()!;
     return (data['name'] ?? data['displayName'] ?? 'Unknown Tutor').toString();
+  }
+
+  // ── Fetch student name for a single studentId ────────────────────────────
+  Future<String> _studentName(String studentId) async {
+    if (studentId.isEmpty) return 'Unknown Student';
+    try {
+      final doc = await _firestore.collection('users').doc(studentId).get();
+      if (!doc.exists) return 'Unknown Student';
+      final data = doc.data()!;
+      return (data['name'] ?? data['displayName'] ?? 'Unknown Student')
+          .toString();
+    } catch (_) {
+      return 'Unknown Student';
+    }
   }
 
   Future<List<SessionModel>> _enrichWithTutorNames(
@@ -64,6 +110,20 @@ class SessionRepository {
     );
     return sessions
         .map((s) => s.copyWith(tutorName: names[s.tutorId]))
+        .toList();
+  }
+
+  Future<List<SessionModel>> _enrichWithStudentNames(
+      List<SessionModel> sessions) async {
+    // batch unique student IDs
+    final ids = sessions.map((s) => s.studentId).toSet();
+    final names = <String, String>{};
+    await Future.wait(
+      ids.map((id) async => names[id] = await _studentName(id)),
+    );
+    // Reuse tutorName field to store student name for tutor dashboard
+    return sessions
+        .map((s) => s.copyWith(tutorName: names[s.studentId]))
         .toList();
   }
 }
