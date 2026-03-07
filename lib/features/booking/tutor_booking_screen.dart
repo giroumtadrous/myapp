@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -33,13 +35,51 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   bool _loadingSlots = false;
   // Dates (normalised to midnight) that have ≥1 available slot
   Set<DateTime> _daysWithSlots = {};
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+      _tutorDocSubscription;
 
   @override
   void initState() {
     super.initState();
     _notesController = TextEditingController();
+    _subscribeToTutorAvailability();
     // Pre-compute highlighted days for the current month
     _loadAvailableDays(_focusedDay);
+  }
+
+  void _subscribeToTutorAvailability() {
+    _tutorDocSubscription = FirebaseFirestore.instance
+        .collection('tutors')
+        .doc(widget.tutor.id)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted || !snapshot.exists) return;
+      final data = snapshot.data() ?? <String, dynamic>{};
+      final weekly = _extractWeeklyAvailability(data);
+      debugPrint(
+        'TutorBookingScreen: weeklyAvailability updated for ${widget.tutor.id}: $weekly',
+      );
+      _loadAvailableDays(_focusedDay);
+      if (_selectedDay != null) {
+        _loadSlotsForDate(_selectedDay!);
+      }
+    });
+  }
+
+  Map<String, List<String>> _extractWeeklyAvailability(
+    Map<String, dynamic> data,
+  ) {
+    final raw = data['weeklyAvailability'] ?? data['weekly_availability'];
+    if (raw is! Map) return <String, List<String>>{};
+
+    final result = <String, List<String>>{};
+    raw.forEach((key, value) {
+      if (value is List) {
+        result[key.toString().toLowerCase()] =
+            List<String>.from(value.map((e) => e.toString()));
+      }
+    });
+    return result;
   }
 
   /// Fetches weekly availability from Firestore and computes which days in
@@ -53,12 +93,8 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       final data = tutorDoc.data();
       if (data == null) return;
 
-      final Map<String, dynamic>? weekly =
-          data['weekly_availability'] is Map
-              ? Map<String, dynamic>.from(
-                  data['weekly_availability'] as Map)
-              : null;
-      if (weekly == null || weekly.isEmpty) return;
+        final weekly = _extractWeeklyAvailability(data);
+        if (weekly.isEmpty) return;
 
       // Collect all dates in the visible month
       final firstDay = DateTime(month.year, month.month, 1);
@@ -109,62 +145,21 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   /// Pure helper — generates 'HH:mm|display' slot strings for [date] given the
   /// tutor's [weekly] availability map. No network calls.
   List<String> _generateSlotsForDay(
-      DateTime date, Map<String, dynamic> weekly) {
+      DateTime date, Map<String, List<String>> weekly) {
     final weekdayName = DateFormat.EEEE().format(date).toLowerCase();
-    final weekdayNameCap = DateFormat.EEEE().format(date);
-    dynamic avail;
-    if (weekly.containsKey(weekdayName)) {
-      avail = weekly[weekdayName];
-    } else if (weekly.containsKey(weekdayNameCap)) {
-      avail = weekly[weekdayNameCap];
-    } else if (weekly.containsKey(date.weekday.toString())) {
-      avail = weekly[date.weekday.toString()];
-    }
-    if (avail == null) return [];
+    final avail = weekly[weekdayName] ?? [];
+    if (avail.isEmpty) return [];
 
     final slots = <String>[];
-    if (avail is List) {
-      for (final t in avail) {
-        try {
-          DateTime dt = DateFormat('HH:mm').parseLoose(t.toString());
-          dt = DateTime(date.year, date.month, date.day, dt.hour, dt.minute);
-          slots.add('${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}');
-        } catch (_) {}
-      }
-    } else if (avail is Map &&
-        avail.isNotEmpty &&
-        avail.values.every((v) => v is String)) {
-      avail.forEach((start, end) {
-        try {
-          DateTime s = DateFormat('HH:mm').parseLoose(start);
-          DateTime e = DateFormat('HH:mm').parseLoose(end);
-          s = DateTime(date.year, date.month, date.day, s.hour, s.minute);
-          e = DateTime(date.year, date.month, date.day, e.hour, e.minute);
-          DateTime cur = s;
-          while (cur.isBefore(e)) {
-            slots.add('${DateFormat('HH:mm').format(cur)}|${DateFormat.jm().format(cur)}');
-            cur = cur.add(const Duration(minutes: 60));
-          }
-        } catch (_) {}
-      });
-    } else if (avail is Map) {
-      final start = avail['start']?.toString();
-      final end = avail['end']?.toString();
-      final dur = int.tryParse(
-              (avail['slotDuration'] ?? avail['slot_duration'] ?? 60)
-                  .toString()) ??
-          60;
-      if (start != null && end != null) {
-        DateTime s = DateFormat('HH:mm').parseLoose(start);
-        DateTime e = DateFormat('HH:mm').parseLoose(end);
-        s = DateTime(date.year, date.month, date.day, s.hour, s.minute);
-        e = DateTime(date.year, date.month, date.day, e.hour, e.minute);
-        DateTime cur = s;
-        while (cur.add(Duration(minutes: dur)).isBefore(e) ||
-            cur.add(Duration(minutes: dur)).isAtSameMomentAs(e)) {
-          slots.add('${DateFormat('HH:mm').format(cur)}|${DateFormat.jm().format(cur)}');
-          cur = cur.add(Duration(minutes: dur));
-        }
+    for (final t in avail) {
+      try {
+        DateTime dt = DateFormat('HH:mm').parseLoose(t.toString());
+        dt = DateTime(date.year, date.month, date.day, dt.hour, dt.minute);
+        slots.add(
+          '${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}',
+        );
+      } catch (_) {
+        debugPrint('TutorBookingScreen: Invalid slot format "$t"');
       }
     }
     return slots;
@@ -172,28 +167,29 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
 
   @override
   void dispose() {
+    _tutorDocSubscription?.cancel();
     _notesController.dispose();
     super.dispose();
   }
 
   Future<void> _loadSlotsForDate(DateTime date) async {
-    print('=== _loadSlotsForDate called ===');
+    debugPrint('=== _loadSlotsForDate called ===');
     setState(() => _loadingSlots = true);
 
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    print('Loading slots for date: $dateStr');
+    debugPrint('Loading slots for date: $dateStr');
 
     try {
-      print('Fetching tutor data for ID: ${widget.tutor.id}');
+      debugPrint('Fetching tutor data for ID: ${widget.tutor.id}');
       final tutorDoc = await FirebaseFirestore.instance
           .collection('tutors')
           .doc(widget.tutor.id)
           .get();
       final data = tutorDoc.data();
-      print('Tutor document exists: ${tutorDoc.exists}');
+      debugPrint('Tutor document exists: ${tutorDoc.exists}');
 
       if (data == null) {
-        print('ERROR: Tutor data is null');
+        debugPrint('ERROR: Tutor data is null');
         setState(() {
           _availableSlots = [];
           _loadingSlots = false;
@@ -201,18 +197,16 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         return;
       }
 
-      print('Firestore weekly_availability: ${data['weekly_availability']}');
+      debugPrint(
+        'Firestore weeklyAvailability: ${data['weeklyAvailability'] ?? data['weekly_availability']}',
+      );
 
-      final Map<String, dynamic>? weekly =
-          data['weekly_availability'] is Map
-              ? Map<String, dynamic>.from(data['weekly_availability'] as Map)
-              : null;
-
-      final slots = weekly != null ? _generateSlotsForDay(date, weekly) : <String>[];
-      print('Generated slots: $slots');
+      final weekly = _extractWeeklyAvailability(data);
+      final slots = _generateSlotsForDay(date, weekly);
+      debugPrint('Generated slots: $slots');
 
       // Query booked sessions for this tutor on the selected date
-      print('Querying sessions for tutorId: ${widget.tutor.id}, date: $dateStr');
+      debugPrint('Querying sessions for tutorId: ${widget.tutor.id}, date: $dateStr');
       final querySnapshot = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
@@ -225,9 +219,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           ])
           .get();
 
-      print('Query returned ${querySnapshot.docs.length} documents');
+      debugPrint('Query returned ${querySnapshot.docs.length} documents');
       for (final doc in querySnapshot.docs) {
-        print('Session doc data: ${doc.data()}');
+        debugPrint('Session doc data: ${doc.data()}');
       }
 
       final occupied = <String>{};
@@ -251,17 +245,17 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           .where((s) => !occupied.contains(s.split('|')[0]))
           .toList();
 
-      print('Occupied slots: $occupied');
-      print('Available slots: $available');
+      debugPrint('Occupied slots: $occupied');
+      debugPrint('Available slots: $available');
 
       setState(() => _availableSlots = available);
-      print('UI updated with ${_availableSlots.length} available slots');
+      debugPrint('UI updated with ${_availableSlots.length} available slots');
     } catch (e) {
-      print('ERROR in _loadSlotsForDate: $e');
+      debugPrint('ERROR in _loadSlotsForDate: $e');
       setState(() => _availableSlots = []);
     } finally {
       setState(() => _loadingSlots = false);
-      print('=== _loadSlotsForDate finished ===');
+      debugPrint('=== _loadSlotsForDate finished ===');
     }
   }
 

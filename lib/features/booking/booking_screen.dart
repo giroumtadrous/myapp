@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -24,11 +26,30 @@ class _BookingScreenState extends State<BookingScreen> {
 
   List<String> _availableSlots = [];
   bool _loadingSlots = true;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+      _tutorDocSubscription;
 
   @override
   void initState() {
     super.initState();
+    _listenToTutorAvailability();
     _loadAvailableSlots(_selectedDate);
+  }
+
+  void _listenToTutorAvailability() {
+    _tutorDocSubscription = FirebaseFirestore.instance
+        .collection('tutors')
+        .doc(widget.tutor.id)
+        .snapshots()
+        .listen((snapshot) {
+      if (!mounted || !snapshot.exists) return;
+      final data = snapshot.data();
+      debugPrint(
+        'BookingScreen: weeklyAvailability updated for ${widget.tutor.id}: '
+        '${data?['weeklyAvailability']}',
+      );
+      _loadAvailableSlots(_selectedDate);
+    });
   }
 
   Future<void> _loadAvailableSlots(DateTime date) async {
@@ -48,7 +69,15 @@ class _BookingScreenState extends State<BookingScreen> {
 
       final data = tutorDoc.data();
 
-      Map weeklyAvailability = data?['weekly_availability'] ?? {};
+      final rawWeekly = data?['weeklyAvailability'] ?? data?['weekly_availability'];
+      final weeklyAvailability = rawWeekly is Map
+          ? Map<String, dynamic>.from(rawWeekly)
+          : <String, dynamic>{};
+
+      debugPrint(
+        'BookingScreen: loading $dayName from weeklyAvailability: '
+        '${weeklyAvailability[dayName]}',
+      );
 
       List<String> weeklySlots =
           List<String>.from(weeklyAvailability[dayName] ?? []);
@@ -77,6 +106,12 @@ class _BookingScreenState extends State<BookingScreen> {
         _loadingSlots = false;
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _tutorDocSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _pickDate() async {

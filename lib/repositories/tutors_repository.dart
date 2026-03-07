@@ -75,7 +75,7 @@ Stream<Map<String, List<String>>> getSubjectsGroupedByMain() {
   return _firestore.collection(_collection).snapshots().map((snapshot) {
     final Map<String, Set<String>> grouped = {};
     for (final doc in snapshot.docs) {
-      final tutor = Tutor.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      final tutor = Tutor.fromMap(doc.id, doc.data());
       for (final mainCat in tutor.main) {
         final set = grouped.putIfAbsent(mainCat, () => <String>{});
         set.addAll(tutor.subjects);
@@ -84,6 +84,70 @@ Stream<Map<String, List<String>>> getSubjectsGroupedByMain() {
 
     // convert sets to sorted lists for downstream consumers
     return grouped.map((key, value) => MapEntry(key, value.toList()..sort()));
+  });
+}
+
+/// Gets the weekly availability for a specific tutor.
+/// Returns a map where keys are day names (lowercase) and values are lists of hours.
+/// Example: {'monday': ['09:00', '10:00'], 'tuesday': ['14:00']}
+/// If weeklyAvailability doesn't exist, initializes with empty arrays for all days.
+Future<Map<String, List<String>>> getTutorAvailability(String tutorId) async {
+  try {
+    final doc = await _firestore.collection(_collection).doc(tutorId).get();
+    if (!doc.exists) {
+      return {};
+    }
+
+    final data = doc.data();
+    if (data == null) {
+      return {};
+    }
+
+    final rawAvailability =
+        (data['weeklyAvailability'] ?? data['weekly_availability']);
+    final availability = rawAvailability is Map
+        ? Map<String, dynamic>.from(rawAvailability)
+        : <String, dynamic>{};
+    final result = <String, List<String>>{};
+
+    availability.forEach((key, value) {
+      if (value is List) {
+        result[key.toString().toLowerCase()] =
+            List<String>.from(value.map((e) => e.toString()));
+      }
+    });
+
+    return result;
+  } catch (e) {
+    throw Exception('Failed to get tutor availability: $e');
+  }
+}
+
+/// Updates the weekly availability for a specific tutor.
+/// [availability] should be a map where keys are day names (lowercase) and 
+/// values are lists of hours (e.g., '09:00', '10:00').
+/// Only updates the weeklyAvailability field without overwriting other fields.
+/// Example: {'monday': ['09:00', '10:00', '14:00'], 'tuesday': ['10:00', '11:00']}
+Future<void> updateTutorAvailability(
+  String tutorId,
+  Map<String, List<String>> availability,
+) async {
+  try {
+    await _firestore.collection(_collection).doc(tutorId).update({
+      'weeklyAvailability': availability,
+      'weekly_availability': FieldValue.delete(),
+    });
+  } catch (e) {
+    throw Exception('Failed to update tutor availability: $e');
+  }
+}
+
+/// Gets a real-time stream of a single tutor by ID.
+/// Returns a stream that updates whenever the tutor document changes in Firestore.
+Stream<Tutor?> getTutorById(String tutorId) {
+  return _firestore.collection(_collection).doc(tutorId).snapshots().map((doc) {
+    if (!doc.exists) return null;
+    return Tutor.fromMap(doc.id, doc.data() as Map<String, dynamic>);
   });
 }
 }

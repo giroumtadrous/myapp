@@ -38,7 +38,9 @@ class Tutor {
       // from the subjects list using our predefined mappings.
       main: _inferMain(_toSubjects(data['main']), _toSubjects(data['subjects'])),
       subjectsByMain: _toSubjectsByMain(data['subjects_by_main']),
-      weeklyAvailability: _toWeeklyAvailability(data['weeklyAvailability']),  
+      weeklyAvailability: _toWeeklyAvailability(
+        data['weeklyAvailability'] ?? data['weekly_availability'],
+      ),
     );
   }
 
@@ -100,21 +102,16 @@ class Tutor {
   }
   
   static Map<String, List<String>> _toWeeklyAvailability(dynamic v) {
-  if (v == null) return {};
+    if (v == null || v is! Map) return {};
 
-  if (v is Map) {
-    final Map<String, List<String>> result = {};
-
+    final result = <String, List<String>>{};
     v.forEach((key, value) {
       if (value is List) {
-        result[key.toString().toLowerCase()] =
-            value.map((e) => e.toString()).toList();
+        result[key.toString().toLowerCase()] = List<String>.from(
+          value.map((e) => e.toString()),
+        );
       }
     });
-
     return result;
   }
-
-  return {};
-}
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../tutor/upcoming_sessions_tab.dart';
 import '../tutor/past_sessions_tab.dart';
 import '../tutor/other_tutors_tab.dart';
+import '../tutor/tutor_availability_screen.dart';
 import '../../repositories/tutor_auth_repository.dart';
 
 class TutorDashboardScreen extends StatefulWidget {
@@ -52,6 +53,20 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
       appBar: AppBar(
         title: const Text('Tutor Dashboard'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TutorAvailabilityScreen(
+                    tutorId: widget.tutorId,
+                  ),
+                ),
+              );
+            },
+            tooltip: 'Edit Availability',
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: _signOut,
