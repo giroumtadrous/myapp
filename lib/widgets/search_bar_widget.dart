@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 class SearchBarWidget extends StatelessWidget {
   final String hintText;
   final VoidCallback? onFilterTap;
+  final ValueChanged<String>? onChanged;
+  final TextEditingController? controller;
 
   const SearchBarWidget({
     super.key,
     this.hintText = 'Search subjects or tutors',
     this.onFilterTap,
+    this.onChanged,
+    this.controller,
   });
 
   @override
@@ -31,14 +35,18 @@ class SearchBarWidget extends StatelessWidget {
               ],
             ),
             child: TextField(
+              controller: controller,
+              onChanged: onChanged,
               decoration: InputDecoration(
                 hintText: hintText,
                 prefixIcon: const Icon(Icons.search),
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
           ),
@@ -54,11 +62,7 @@ class SearchBarWidget extends StatelessWidget {
             onTap: onFilterTap,
             child: const Padding(
               padding: EdgeInsets.all(10),
-              child: Icon(
-                Icons.tune_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
+              child: Icon(Icons.tune_rounded, color: Colors.white, size: 22),
             ),
           ),
         ),
@@ -66,4 +70,3 @@ class SearchBarWidget extends StatelessWidget {
     );
   }
 }
-

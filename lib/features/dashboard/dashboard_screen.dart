@@ -35,6 +35,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _selectedCategoryIndex = 0;
   String? _selectedSubject;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -87,7 +88,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   _Header(userService: _userService),
                   const SizedBox(height: 24),
-                  const SearchBarWidget(hintText: 'Search subjects or tutors'),
+                  SearchBarWidget(
+                    hintText: 'Search tutors by name',
+                    onChanged: (value) {
+                      setState(() {
+                        _searchQuery = value.trim().toLowerCase();
+                      });
+                    },
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -140,8 +148,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       subjectFilter: _selectedSubject,
                     ),
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState ==
-                          ConnectionState.waiting) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _TutorsLoadingState();
                       }
 
@@ -149,18 +156,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         return _TutorsErrorState(
                           message:
                               snapshot.error?.toString() ??
-                                  'Something went wrong',
+                              'Something went wrong',
                         );
                       }
 
                       final tutors = snapshot.data ?? [];
-                      final subjects = _subjectsForTutors(tutors, selectedCategoryId == 'all' ? null : selectedCategoryId);
+                      final filteredTutors = _searchQuery.isEmpty
+                          ? tutors
+                          : tutors
+                                .where(
+                                  (tutor) => tutor.name.toLowerCase().contains(
+                                    _searchQuery,
+                                  ),
+                                )
+                                .toList();
+                      final subjects = _subjectsForTutors(
+                        filteredTutors,
+                        selectedCategoryId == 'all' ? null : selectedCategoryId,
+                      );
 
                       // log subjects so they are printed whenever the stream
                       // updates, fulfilling the "print the subjects" requirement
                       if (subjects.isNotEmpty) {
                         debugPrint(
-                            'Subjects for $selectedCategoryId: $subjects');
+                          'Subjects for $selectedCategoryId: $subjects',
+                        );
                       }
 
                       return Column(
@@ -192,16 +212,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   child: Chip(
                                     label: Text(s),
                                     backgroundColor: selected
-                                        ? Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withOpacity(0.1)
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.primary.withOpacity(0.1)
                                         : null,
                                     side: selected
                                         ? BorderSide(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary)
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
+                                          )
                                         : null,
                                   ),
                                 );
@@ -214,8 +234,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 Text(
                                   'Filter: $_selectedSubject',
-                                  style: textTheme.bodyMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 TextButton(
@@ -237,7 +258,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          if (tutors.isEmpty)
+                          if (filteredTutors.isEmpty)
                             _TutorsEmptyState(
                               categoryFilter: selectedCategoryId == 'all'
                                   ? null
@@ -248,22 +269,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               height: 230,
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
-                                itemCount: tutors.length,
+                                itemCount: filteredTutors.length,
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(width: 12),
                                 itemBuilder: (context, index) {
-                                  final tutor = tutors[index];
+                                  final tutor = filteredTutors[index];
                                   // compute per-tutor visible subjects for the
                                   // currently selected category. Prefer DB
                                   // provided mapping, fallback to local filter.
                                   final visible = tutor.subjectsByMain != null
-                                      ? tutor.subjectsByMain![selectedCategoryId] ?? []
-                                      : tutor.subjects.where((s) =>
-                                          SubjectCategories.subjectsForMain(selectedCategoryId).contains(s)).toList();
+                                      ? tutor.subjectsByMain![selectedCategoryId] ??
+                                            []
+                                      : tutor.subjects
+                                            .where(
+                                              (s) =>
+                                                  SubjectCategories.subjectsForMain(
+                                                    selectedCategoryId,
+                                                  ).contains(s),
+                                            )
+                                            .toList();
 
                                   return TutorCard(
                                     tutor: tutor,
-                                    visibleSubjects: visible.isEmpty ? null : visible,
+                                    visibleSubjects: visible.isEmpty
+                                        ? null
+                                        : visible,
                                     onTap: () {
                                       Navigator.of(context).push(
                                         MaterialPageRoute(
@@ -288,9 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _UpcomingSessionsList(
-                    sessionRepository: _sessionRepository,
-                  ),
+                  _UpcomingSessionsList(sessionRepository: _sessionRepository),
                 ],
               ),
             ),
@@ -320,13 +348,14 @@ class _UpcomingSessionsList extends StatelessWidget {
   }
 
   Future<void> _confirmCancel(
-      BuildContext context, SessionModel session) async {
+    BuildContext context,
+    SessionModel session,
+  ) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Cancel Session'),
-        content: const Text(
-            'Are you sure you want to cancel this session?'),
+        content: const Text('Are you sure you want to cancel this session?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -343,9 +372,9 @@ class _UpcomingSessionsList extends StatelessWidget {
     if (confirm == true) {
       await sessionRepository.cancelSession(session.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Session cancelled.')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Session cancelled.')));
       }
     }
   }
@@ -369,10 +398,9 @@ class _UpcomingSessionsList extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
               'No upcoming sessions yet. Book a tutor to get started.',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyMedium
-                  ?.copyWith(color: Colors.grey[600]),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
           );
         }
@@ -380,9 +408,10 @@ class _UpcomingSessionsList extends StatelessWidget {
           children: sessions.map((s) {
             final dateStr = DateFormat.yMMMd().format(s.dateTime);
             final timeStr = DateFormat.jm().format(s.dateTime);
-            final isNow = s.status == 'booked' &&
-                s.dateTime.difference(DateTime.now()).inMinutes <= 30
-                && s.dateTime.isAfter(DateTime.now());
+            final isNow =
+                s.status == 'booked' &&
+                s.dateTime.difference(DateTime.now()).inMinutes <= 30 &&
+                s.dateTime.isAfter(DateTime.now());
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: SessionCard(
@@ -497,7 +526,6 @@ class _TutorsEmptyState extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _Header extends StatelessWidget {

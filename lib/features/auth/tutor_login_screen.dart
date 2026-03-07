@@ -45,9 +45,9 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
   Future<void> _signIn() async {
     final validationError = _validateInputs();
     if (validationError != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(validationError)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -57,11 +57,12 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _tutorAuthRepository.signInTutor(
-        email: email,
-        password: password,
-      );
-      // authStateChanges() in main.dart handles navigation to TutorDashboardScreen
+      await _tutorAuthRepository.signInTutor(email: email, password: password);
+      if (mounted) {
+        // Return to the root auth wrapper so authStateChanges can render
+        // the tutor dashboard and remove login from the back stack.
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
     } on FirebaseAuthException catch (e) {
       String message = 'Failed to sign in. Please try again.';
       if (e.code == 'user-not-found') {
@@ -72,9 +73,9 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
         message = 'The email address is not valid.';
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
       String message = e.toString();
@@ -83,9 +84,9 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
             'This account is not registered as a tutor. Please contact support.';
       }
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) {
@@ -122,10 +123,7 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  Text(
-                    'Email',
-                    style: textTheme.labelLarge,
-                  ),
+                  Text('Email', style: textTheme.labelLarge),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _emailController,
@@ -136,10 +134,7 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text(
-                    'Password',
-                    style: textTheme.labelLarge,
-                  ),
+                  Text('Password', style: textTheme.labelLarge),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _passwordController,
@@ -158,9 +153,7 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text('Log in as Tutor'),
                     ),
