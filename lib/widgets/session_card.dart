@@ -8,8 +8,13 @@ class SessionCard extends StatelessWidget {
   final String statusLabel;
   final Color statusColor;
   final bool isActive;
+
+  /// Callback for opening a meeting link. If null, Join Meet is disabled.
+  final VoidCallback? onJoinMeet;
+
   /// When non-null a "Cancel Session" button is shown for upcoming sessions.
   final VoidCallback? onCancel;
+
   /// When true the card is styled as a past/history card (no join button).
   final bool isPast;
 
@@ -22,6 +27,7 @@ class SessionCard extends StatelessWidget {
     required this.statusLabel,
     required this.statusColor,
     required this.isActive,
+    this.onJoinMeet,
     this.onCancel,
     this.isPast = false,
   });
@@ -32,9 +38,7 @@ class SessionCard extends StatelessWidget {
     final textTheme = theme.textTheme;
 
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -45,12 +49,8 @@ class SessionCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundColor:
-                      theme.colorScheme.primary.withOpacity(0.1),
-                  child: Icon(
-                    Icons.person,
-                    color: theme.colorScheme.primary,
-                  ),
+                  backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+                  child: Icon(Icons.person, color: theme.colorScheme.primary),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -74,8 +74,10 @@ class SessionCard extends StatelessWidget {
                   ),
                 ),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
@@ -94,25 +96,13 @@ class SessionCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(
-                  Icons.calendar_today_outlined,
-                  size: 18,
-                ),
+                const Icon(Icons.calendar_today_outlined, size: 18),
                 const SizedBox(width: 6),
-                Text(
-                  date,
-                  style: textTheme.bodyMedium,
-                ),
+                Text(date, style: textTheme.bodyMedium),
                 const SizedBox(width: 16),
-                const Icon(
-                  Icons.schedule_outlined,
-                  size: 18,
-                ),
+                const Icon(Icons.schedule_outlined, size: 18),
                 const SizedBox(width: 6),
-                Text(
-                  timeRange,
-                  style: textTheme.bodyMedium,
-                ),
+                Text(timeRange, style: textTheme.bodyMedium),
               ],
             ),
             const SizedBox(height: 16),
@@ -121,11 +111,11 @@ class SessionCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: isActive ? () {} : null,
+                      onPressed: onJoinMeet ?? (isActive ? () {} : null),
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('Join Meet'),
+                      child: const Text('Join Session'),
                     ),
                   ),
                   if (onCancel != null) ...[
@@ -151,4 +141,3 @@ class SessionCard extends StatelessWidget {
     );
   }
 }
-

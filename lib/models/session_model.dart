@@ -7,6 +7,8 @@ class SessionModel {
   final String subject;
   final DateTime dateTime;
   final String status;
+  final String roomName;
+  final String? meetLink;
   final String? paymentId;
   final double amount;
   final String? tutorName; // populated after join with tutors collection
@@ -18,6 +20,8 @@ class SessionModel {
     required this.subject,
     required this.dateTime,
     required this.status,
+    required this.roomName,
+    this.meetLink,
     this.paymentId,
     this.amount = 0,
     this.tutorName,
@@ -44,8 +48,11 @@ class SessionModel {
       subject: (data['subject'] ?? '').toString(),
       dateTime: dt,
       status: (data['status'] ?? 'pending').toString(),
+        roomName: (data['roomName'] ?? data['jitsiRoomName'] ?? '').toString(),
+      meetLink: data['meetLink']?.toString(),
       paymentId: data['paymentId']?.toString(),
-      amount: (data['hourlyRate'] as num?)?.toDouble() ??
+      amount:
+          (data['hourlyRate'] as num?)?.toDouble() ??
           (data['amount'] as num?)?.toDouble() ??
           0,
     );
@@ -59,6 +66,8 @@ class SessionModel {
       subject: subject,
       dateTime: dateTime,
       status: status,
+      roomName: roomName,
+      meetLink: meetLink,
       paymentId: paymentId,
       amount: amount,
       tutorName: tutorName ?? this.tutorName,

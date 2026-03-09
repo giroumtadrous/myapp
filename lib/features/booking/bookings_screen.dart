@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../models/session_model.dart';
 import '../../repositories/payment_repository.dart';
 import '../../repositories/session_repository.dart';
+import '../../services/jitsi_meet_service.dart';
 import '../../widgets/session_card.dart';
 import 'manual_payment_screen.dart';
 
@@ -20,9 +21,39 @@ class _BookingsScreenState extends State<BookingsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   final PaymentRepository _paymentRepository = PaymentRepository();
 
+  String _meetingDisplayName(User user) {
+    final displayName = (user.displayName ?? '').trim();
+    if (displayName.isNotEmpty) return displayName;
+
+    final email = (user.email ?? '').trim();
+    if (email.isNotEmpty) return email.split('@').first;
+
+    return 'Student';
+  }
+
+  Future<void> _startMeeting(SessionModel session, User user) async {
+    try {
+      final roomName = await _sessionRepository.ensureSessionRoomName(
+        session.id,
+        existingRoomName: session.roomName,
+      );
+
+      await JitsiMeetService.instance.startMeeting(
+        roomName: roomName,
+        userName: _meetingDisplayName(user),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'booked':
+      case 'confirmed':
         return Colors.green;
       case 'pending_payment_verification':
         return Colors.orange;
@@ -56,11 +87,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
       );
     }
 
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('My bookings'),
-      ),
+      appBar: AppBar(title: const Text('My bookings')),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -77,7 +105,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
               StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: _paymentRepository.userNotifications(user.uid),
                 builder: (context, snapshot) {
-                  final docs = snapshot.data?.docs ??
+                  final docs =
+                      snapshot.data?.docs ??
                       <QueryDocumentSnapshot<Map<String, dynamic>>>[];
                   final unread = docs.where((d) {
                     final value = d.data()['read'];
@@ -94,8 +123,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: unread.take(2).map((doc) {
                           final data = doc.data();
-                          final title =
-                              (data['title'] ?? 'Payment update').toString();
+                          final title = (data['title'] ?? 'Payment update')
+                              .toString();
                           final message = (data['message'] ?? '').toString();
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
@@ -128,8 +157,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       return Center(
                         child: Text(
                           'No upcoming sessions yet.',
-                          style: textTheme.bodyMedium
-                              ?.copyWith(color: Colors.grey[600]),
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey[600],
+                          ),
                         ),
                       );
                     }
@@ -140,9 +170,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final session = sessions[index];
-                        final isActive = session.status == 'booked' &&
-                            session.dateTime.difference(DateTime.now()).inMinutes <= 30 &&
-                            session.dateTime.isAfter(DateTime.now());
+                        final isSessionConfirmed = session.status == 'confirmed';
 
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -151,12 +179,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               tutorName: session.tutorName ?? session.tutorId,
                               subject: session.subject,
                               date: DateFormat.yMMMd().format(session.dateTime),
-                              timeRange: DateFormat.jm().format(session.dateTime),
+                              timeRange: DateFormat.jm().format(
+                                session.dateTime,
+                              ),
                               statusLabel: _statusLabel(session.status),
                               statusColor: _statusColor(session.status),
-                              isActive: isActive,
+                              isActive: false,
+                                onJoinMeet: isSessionConfirmed
+                                  ? () => _startMeeting(session, user)
+                                  : null,
                             ),
-                            if (session.status == 'pending_payment_verification')
+                            if (session.status ==
+                                'pending_payment_verification')
                               Padding(
                                 padding: const EdgeInsets.only(top: 8),
                                 child: Text(
@@ -178,12 +212,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                           sessionId: session.id,
                                           tutorId: session.tutorId,
                                           subject: session.subject,
-                                          date: DateFormat('yyyy-MM-dd')
-                                              .format(session.dateTime),
-                                          time: DateFormat('HH:mm')
-                                              .format(session.dateTime),
-                                          timeDisplay:
-                                              DateFormat.jm().format(session.dateTime),
+                                          date: DateFormat(
+                                            'yyyy-MM-dd',
+                                          ).format(session.dateTime),
+                                          time: DateFormat(
+                                            'HH:mm',
+                                          ).format(session.dateTime),
+                                          timeDisplay: DateFormat.jm().format(
+                                            session.dateTime,
+                                          ),
                                           sessionDateTime: session.dateTime,
                                           amount: session.amount,
                                         ),
@@ -191,7 +228,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                     );
                                   },
                                   icon: const Icon(Icons.upload_file_outlined),
-                                  label: const Text('Upload Correct Payment Proof'),
+                                  label: const Text(
+                                    'Upload Correct Payment Proof',
+                                  ),
                                 ),
                               ),
                           ],
@@ -208,4 +247,3 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 }
-

@@ -6,6 +6,7 @@ import '../../models/session_model.dart';
 import '../../models/tutor_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
+import '../../services/jitsi_meet_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/category_chip.dart';
 import '../../models/subject_categories.dart';
@@ -334,9 +335,43 @@ class _UpcomingSessionsList extends StatelessWidget {
 
   const _UpcomingSessionsList({required this.sessionRepository});
 
+  String _meetingDisplayName(User user) {
+    final displayName = (user.displayName ?? '').trim();
+    if (displayName.isNotEmpty) return displayName;
+
+    final email = (user.email ?? '').trim();
+    if (email.isNotEmpty) return email.split('@').first;
+
+    return 'Student';
+  }
+
+  Future<void> _startMeeting(
+    BuildContext context,
+    SessionModel session,
+    User user,
+  ) async {
+    try {
+      final roomName = await sessionRepository.ensureSessionRoomName(
+        session.id,
+        existingRoomName: session.roomName,
+      );
+
+      await JitsiMeetService.instance.startMeeting(
+        roomName: roomName,
+        userName: _meetingDisplayName(user),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
+    }
+  }
+
   Color _statusColor(String status) {
     switch (status) {
       case 'booked':
+      case 'confirmed':
         return Colors.green[600]!;
       case 'pending_payment_verification':
         return Colors.orange[700]!;
@@ -408,10 +443,7 @@ class _UpcomingSessionsList extends StatelessWidget {
           children: sessions.map((s) {
             final dateStr = DateFormat.yMMMd().format(s.dateTime);
             final timeStr = DateFormat.jm().format(s.dateTime);
-            final isNow =
-                s.status == 'booked' &&
-                s.dateTime.difference(DateTime.now()).inMinutes <= 30 &&
-                s.dateTime.isAfter(DateTime.now());
+            final isSessionConfirmed = s.status == 'confirmed';
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: SessionCard(
@@ -421,7 +453,10 @@ class _UpcomingSessionsList extends StatelessWidget {
                 timeRange: timeStr,
                 statusLabel: s.status,
                 statusColor: _statusColor(s.status),
-                isActive: isNow,
+                isActive: false,
+                onJoinMeet: isSessionConfirmed
+                    ? () => _startMeeting(context, s, currentUser)
+                    : null,
                 onCancel: () => _confirmCancel(context, s),
               ),
             );

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:myapp/features/dashboard/main_navigation_screen.dart';
 
 import '../../models/tutor_model.dart';
-import '../dashboard/dashboard_screen.dart';
 
 class ConfirmationScreen extends StatelessWidget {
   final Tutor tutor;

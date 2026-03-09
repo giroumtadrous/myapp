@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../../services/jitsi_meet_service.dart';
 
 class UpcomingSessionsTab extends StatelessWidget {
   final String tutorId;
   final SessionRepository _sessionRepository = SessionRepository();
 
-  UpcomingSessionsTab({
-    required this.tutorId,
-    super.key,
-  });
+  UpcomingSessionsTab({required this.tutorId, super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -20,15 +19,11 @@ class UpcomingSessionsTab extends StatelessWidget {
       stream: _sessionRepository.tutorUpcomingSessions(tutorId),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Error: ${snapshot.error}'),
-          );
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
 
         final sessions = snapshot.data ?? [];
@@ -37,9 +32,7 @@ class UpcomingSessionsTab extends StatelessWidget {
           return Center(
             child: Text(
               'No upcoming sessions',
-              style: textTheme.bodyMedium?.copyWith(
-                color: Colors.grey[600],
-              ),
+              style: textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
             ),
           );
         }
@@ -49,10 +42,7 @@ class UpcomingSessionsTab extends StatelessWidget {
           itemCount: sessions.length,
           itemBuilder: (context, index) {
             final session = sessions[index];
-            return _SessionCard(
-              session: session,
-              showStudentName: true,
-            );
+            return _SessionCard(session: session, showStudentName: true);
           },
         );
       },
@@ -63,11 +53,46 @@ class UpcomingSessionsTab extends StatelessWidget {
 class _SessionCard extends StatelessWidget {
   final SessionModel session;
   final bool showStudentName;
+  final SessionRepository _sessionRepository = SessionRepository();
 
-  const _SessionCard({
-    required this.session,
-    required this.showStudentName,
-  });
+  _SessionCard({required this.session, required this.showStudentName});
+
+  String _meetingDisplayName(User user) {
+    final displayName = (user.displayName ?? '').trim();
+    if (displayName.isNotEmpty) return displayName;
+
+    final email = (user.email ?? '').trim();
+    if (email.isNotEmpty) return email.split('@').first;
+
+    return 'Tutor';
+  }
+
+  Future<void> _startMeeting(BuildContext context) async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in to join the session.')),
+      );
+      return;
+    }
+
+    try {
+      final roomName = await _sessionRepository.ensureSessionRoomName(
+        session.id,
+        existingRoomName: session.roomName,
+      );
+
+      await JitsiMeetService.instance.startMeeting(
+        roomName: roomName,
+        userName: _meetingDisplayName(currentUser),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -132,30 +157,18 @@ class _SessionCard extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(
-                  Icons.calendar_today,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
+                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 8),
                 Text(
                   dateStr,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+                  style: textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
                 ),
                 const SizedBox(width: 16),
-                Icon(
-                  Icons.access_time,
-                  size: 16,
-                  color: Colors.grey[600],
-                ),
+                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                 const SizedBox(width: 8),
                 Text(
                   timeStr,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[700],
-                  ),
+                  style: textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
                 ),
               ],
             ),
@@ -169,6 +182,16 @@ class _SessionCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: session.status == 'confirmed'
+                    ? () => _startMeeting(context)
+                    : null,
+                child: const Text('Join Session'),
+              ),
+            ),
           ],
         ),
       ),

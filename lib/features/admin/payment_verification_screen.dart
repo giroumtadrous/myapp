@@ -30,16 +30,16 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
         SnackBar(
           content: Text(
             approved
-                ? 'Payment approved and session booked.'
+                ? 'Payment approved and session confirmed.'
                 : 'Payment rejected. Student notified.',
           ),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Verification failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Verification failed: $e')));
     }
   }
 
@@ -48,9 +48,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment Verification'),
-      ),
+      appBar: AppBar(title: const Text('Payment Verification')),
       body: SafeArea(
         child: StreamBuilder<List<PaymentModel>>(
           stream: _paymentRepository.pendingPayments(),
@@ -62,10 +60,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
             final payments = snapshot.data ?? <PaymentModel>[];
             if (payments.isEmpty) {
               return Center(
-                child: Text(
-                  'No pending payments.',
-                  style: textTheme.bodyLarge,
-                ),
+                child: Text('No pending payments.', style: textTheme.bodyLarge),
               );
             }
 
@@ -82,8 +77,8 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                       .get(),
                   builder: (context, sessionSnap) {
                     final sessionData = sessionSnap.data?.data();
-                    final subject =
-                        (sessionData?['subject'] ?? 'Unknown').toString();
+                    final subject = (sessionData?['subject'] ?? 'Unknown')
+                        .toString();
 
                     return Card(
                       child: Padding(
@@ -131,9 +126,12 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                                 child: Image.network(
                                   payment.screenshotUrl,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Text('Unable to load screenshot'),
-                                  ),
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const Center(
+                                        child: Text(
+                                          'Unable to load screenshot',
+                                        ),
+                                      ),
                                 ),
                               ),
                             ),

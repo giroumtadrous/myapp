@@ -1,13 +1,13 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/payment_model.dart';
 
 class PaymentRepository {
-  PaymentRepository({
-    FirebaseFirestore? firestore,
-  })  : _firestore = firestore ?? FirebaseFirestore.instance;
+  PaymentRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
 
@@ -17,6 +17,22 @@ class PaymentRepository {
     'pending',
     'confirmed',
   ];
+
+  static const String _roomAlphabet =
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_';
+  final Random _random = Random.secure();
+
+  String _generateRandomRoomName({int length = 18}) {
+    final chars = List<String>.generate(
+      length,
+      (_) => _roomAlphabet[_random.nextInt(_roomAlphabet.length)],
+    );
+    return 'tutor-${chars.join()}';
+  }
+
+  String _jitsiMeetLink(String roomName) {
+    return 'https://meet.jit.si/$roomName';
+  }
 
   Future<void> submitManualPayment({
     required String sessionId,
@@ -44,75 +60,101 @@ class PaymentRepository {
       final sessionRef = _firestore.collection('sessions').doc(sessionId);
 
       print('[Payment] Transaction step started');
-      await _firestore.runTransaction((tx) async {
-        try {
-          print('[Payment][Tx] Reading session doc: ${sessionRef.id}');
-          final existingSession = await tx.get(sessionRef);
-          if (existingSession.exists) {
-            final data = existingSession.data() ?? <String, dynamic>{};
-            final existingStatus = (data['status'] ?? '').toString();
+      await _firestore
+          .runTransaction((tx) async {
+            try {
+              print('[Payment][Tx] Reading session doc: ${sessionRef.id}');
+              final existingSession = await tx.get(sessionRef);
+              if (existingSession.exists) {
+                final data = existingSession.data() ?? <String, dynamic>{};
+                final existingStatus = (data['status'] ?? '').toString();
 
-            // If the slot is currently in a blocking state, another student cannot use it.
-            if (blockingStatuses.contains(existingStatus)) {
-              throw Exception('This time slot is no longer available.');
+                // If the slot is currently in a blocking state, another student cannot use it.
+                if (blockingStatuses.contains(existingStatus)) {
+                  throw Exception('This time slot is no longer available.');
+                }
+              }
+              final existingData =
+                  existingSession.data() ?? <String, dynamic>{};
+              final existingRoomName = (existingData['roomName'] ?? '')
+                  .toString();
+              final roomName = existingRoomName.isNotEmpty
+                  ? existingRoomName
+                  : _generateRandomRoomName();
+                final existingMeetLink = (existingData['meetLink'] ?? '')
+                  .toString();
+                final meetLink = existingMeetLink.isNotEmpty
+                  ? existingMeetLink
+                  : _jitsiMeetLink(roomName);
+
+              print('[Payment][Tx] Writing payment doc: ${paymentRef.id}');
+              tx.set(paymentRef, {
+                'studentId': studentId,
+                'tutorId': tutorId,
+                'sessionId': sessionId,
+                'amount': amount,
+                'transferTime': Timestamp.fromDate(transferTime),
+                'screenshotUrl': screenshotUrl,
+                'status': 'pending',
+                'note': note?.trim() ?? '',
+                'createdAt': FieldValue.serverTimestamp(),
+                'roomName': roomName,
+              });
+
+              final sessionData = <String, dynamic>{
+                'tutorId': tutorId,
+                'studentId': studentId,
+                'subject': subject,
+                'date': date,
+                'time': time,
+                'timeDisplay': timeDisplay,
+                'dateTime': Timestamp.fromDate(sessionDateTime),
+                'hourlyRate': amount,
+                'paymentId': paymentRef.id,
+                'meetLink': meetLink,
+                'status': 'pending_payment_verification',
+                'roomName': roomName,
+              };
+
+              if (existingSession.exists) {
+                print(
+                  '[Payment][Tx] Updating existing session doc: ${sessionRef.id}',
+                );
+                tx.update(sessionRef, {
+                  ...sessionData,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+              } else {
+                print(
+                  '[Payment][Tx] Creating new session doc: ${sessionRef.id}',
+                );
+                tx.set(sessionRef, {
+                  ...sessionData,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+              }
+            } catch (e) {
+              print('[Payment][Tx] Transaction body failed: $e');
+              rethrow;
             }
-          }
-          print('[Payment][Tx] Writing payment doc: ${paymentRef.id}');
-          tx.set(paymentRef, {
-            'studentId': studentId,
-            'tutorId': tutorId,
-            'sessionId': sessionId,
-            'amount': amount,
-            'transferTime': Timestamp.fromDate(transferTime),
-            'screenshotUrl': screenshotUrl,
-            'status': 'pending',
-            'note': note?.trim() ?? '',
-            'createdAt': FieldValue.serverTimestamp(),
-          });
-
-          final sessionData = <String, dynamic>{
-            'tutorId': tutorId,
-            'studentId': studentId,
-            'subject': subject,
-            'date': date,
-            'time': time,
-            'timeDisplay': timeDisplay,
-            'dateTime': Timestamp.fromDate(sessionDateTime),
-            'hourlyRate': amount,
-            'paymentId': paymentRef.id,
-            'status': 'pending_payment_verification',
-          };
-
-          if (existingSession.exists) {
-            print('[Payment][Tx] Updating existing session doc: ${sessionRef.id}');
-            tx.update(sessionRef, {
-              ...sessionData,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          } else {
-            print('[Payment][Tx] Creating new session doc: ${sessionRef.id}');
-            tx.set(sessionRef, {
-              ...sessionData,
-              'createdAt': FieldValue.serverTimestamp(),
-            });
-          }
-        } catch (e) {
-          print('[Payment][Tx] Transaction body failed: $e');
-          rethrow;
-        }
-      }).timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw TimeoutException(
-            'Booking transaction timed out. Please try again.',
+          })
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException(
+                'Booking transaction timed out. Please try again.',
+              );
+            },
           );
-        },
-      );
 
       final totalMs = DateTime.now().difference(startedAt).inMilliseconds;
-      print('[Payment] Transaction step done. submitManualPayment finished in ${totalMs}ms');
+      print(
+        '[Payment] Transaction step done. submitManualPayment finished in ${totalMs}ms',
+      );
     } on FirebaseException catch (e) {
-      print('[Payment] FirebaseException in submitManualPayment: code=${e.code}, message=${e.message}');
+      print(
+        '[Payment] FirebaseException in submitManualPayment: code=${e.code}, message=${e.message}',
+      );
       throw Exception(e.message ?? 'Firebase error while submitting payment.');
     } on TimeoutException catch (e) {
       print('[Payment] TimeoutException in submitManualPayment: ${e.message}');
@@ -142,28 +184,35 @@ class PaymentRepository {
     final sessionRef = _firestore.collection('sessions').doc(sessionId);
 
     final paymentStatus = approved ? 'approved' : 'rejected';
-    final sessionStatus = approved ? 'booked' : 'payment_rejected';
+    final sessionStatus = approved ? 'confirmed' : 'payment_rejected';
 
     await _firestore.runTransaction((tx) async {
+      final sessionSnap = await tx.get(sessionRef);
+      final sessionData = sessionSnap.data() ?? <String, dynamic>{};
+      final rawRoomName = (sessionData['roomName'] ?? '').toString().trim();
+      final needsRandomRoom =
+          rawRoomName.isEmpty || rawRoomName == sessionId || rawRoomName.startsWith('session_');
+      final roomName = needsRandomRoom ? _generateRandomRoomName() : rawRoomName;
+
       tx.update(paymentRef, {
         'status': paymentStatus,
         'verifiedAt': FieldValue.serverTimestamp(),
+        'roomName': roomName,
       });
 
       tx.update(sessionRef, {
         'status': sessionStatus,
         'updatedAt': FieldValue.serverTimestamp(),
+        'roomName': roomName,
+        'meetLink': _jitsiMeetLink(roomName),
       });
 
       tx.set(_firestore.collection('notifications').doc(), {
         'userId': studentId,
-        'sessionId': sessionId,
-        'paymentId': paymentId,
-        'title': approved ? 'Payment approved' : 'Payment rejected',
+        'title': 'Payment Update',
         'message': approved
-            ? 'Your payment was verified. Your session is now confirmed.'
-            : 'Payment proof was rejected. Please upload a correct screenshot.',
-        'type': approved ? 'payment_approved' : 'payment_rejected',
+            ? 'Your payment has been approved'
+            : 'Your payment has been rejected',
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -184,6 +233,4 @@ class PaymentRepository {
       'read': true,
     });
   }
-
-
 }
