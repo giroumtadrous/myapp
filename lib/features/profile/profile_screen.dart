@@ -8,6 +8,7 @@ import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/user_service.dart';
+import '../booking/session_details_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -307,6 +308,13 @@ class _PastSessionsList extends StatelessWidget {
                     statusColor: _statusColor(s.status),
                     isActive: false,
                     isPast: true,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => SessionDetailsScreen(sessionId: s.id),
+                        ),
+                      );
+                    },
                   ),
                 );
               }).toList(),

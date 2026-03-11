@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../booking/session_details_screen.dart';
 
 class PastSessionsTab extends StatelessWidget {
   final String tutorId;
@@ -80,11 +81,20 @@ class _SessionCard extends StatelessWidget {
         '${session.dateTime.hour.toString().padLeft(2, '0')}:${session.dateTime.minute.toString().padLeft(2, '0')}';
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => SessionDetailsScreen(sessionId: session.id),
+            ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -101,7 +111,7 @@ class _SessionCard extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         showStudentName
-                            ? 'Student: ${session.tutorName ?? 'Unknown'}'
+                            ? 'Student: ${session.studentName ?? 'Unknown'}'
                             : 'Tutor: ${session.tutorName ?? 'Unknown'}',
                         style: textTheme.bodySmall?.copyWith(
                           color: Colors.grey[700],
@@ -159,17 +169,18 @@ class _SessionCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (session.amount > 0) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Rate: \$${session.amount.toStringAsFixed(2)}/hour',
-                style: textTheme.bodySmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: Colors.green[700],
+              if (session.amount > 0) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Rate: \$${session.amount.toStringAsFixed(2)}/hour',
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: Colors.green[700],
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

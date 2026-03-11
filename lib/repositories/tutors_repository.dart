@@ -160,4 +160,14 @@ class TutorsRepository {
       return Tutor.fromMap(doc.id, doc.data() as Map<String, dynamic>);
     });
   }
+
+  /// Updates only the `bio` field of a tutor document.
+  /// Throws [Exception] if the update fails.
+  Future<void> updateTutorBio(String tutorId, String bio) async {
+    try {
+      await _firestore.collection(_collection).doc(tutorId).update({'bio': bio});
+    } catch (e) {
+      throw Exception('Failed to update bio: $e');
+    }
+  }
 }

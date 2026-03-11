@@ -13,6 +13,7 @@ import '../../models/subject_categories.dart';
 import '../../widgets/search_bar_widget.dart';
 import '../../widgets/session_card.dart';
 import '../../widgets/tutor_card.dart';
+import '../booking/session_details_screen.dart';
 import '../booking/tutor_booking_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -454,6 +455,13 @@ class _UpcomingSessionsList extends StatelessWidget {
                 statusLabel: s.status,
                 statusColor: _statusColor(s.status),
                 isActive: false,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => SessionDetailsScreen(sessionId: s.id),
+                    ),
+                  );
+                },
                 onJoinMeet: isSessionConfirmed
                     ? () => _startMeeting(context, s, currentUser)
                     : null,

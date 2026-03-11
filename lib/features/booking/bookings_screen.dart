@@ -9,6 +9,7 @@ import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../widgets/session_card.dart';
 import 'manual_payment_screen.dart';
+import 'session_details_screen.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -185,7 +186,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               statusLabel: _statusLabel(session.status),
                               statusColor: _statusColor(session.status),
                               isActive: false,
-                                onJoinMeet: isSessionConfirmed
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => SessionDetailsScreen(
+                                      sessionId: session.id,
+                                    ),
+                                  ),
+                                );
+                              },
+                              onJoinMeet: isSessionConfirmed
                                   ? () => _startMeeting(session, user)
                                   : null,
                             ),

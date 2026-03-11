@@ -18,6 +18,9 @@ class SessionCard extends StatelessWidget {
   /// When true the card is styled as a past/history card (no join button).
   final bool isPast;
 
+  /// Callback fired when user taps the card body.
+  final VoidCallback? onTap;
+
   const SessionCard({
     super.key,
     required this.tutorName,
@@ -30,6 +33,7 @@ class SessionCard extends StatelessWidget {
     this.onJoinMeet,
     this.onCancel,
     this.isPast = false,
+    this.onTap,
   });
 
   @override
@@ -40,11 +44,14 @@ class SessionCard extends StatelessWidget {
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Row(
               children: [
                 CircleAvatar(
@@ -106,7 +113,7 @@ class SessionCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            if (!isPast) ...[
+              if (!isPast) ...[
               Row(
                 children: [
                   Expanded(
@@ -134,8 +141,9 @@ class SessionCard extends StatelessWidget {
                   ],
                 ],
               ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

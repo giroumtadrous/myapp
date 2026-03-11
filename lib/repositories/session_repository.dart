@@ -3,6 +3,30 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/session_model.dart';
 
+class SessionParticipant {
+  final String id;
+  final String name;
+  final String? photoUrl;
+
+  const SessionParticipant({
+    required this.id,
+    required this.name,
+    this.photoUrl,
+  });
+}
+
+class SessionDetailsData {
+  final SessionModel session;
+  final SessionParticipant tutor;
+  final SessionParticipant student;
+
+  const SessionDetailsData({
+    required this.session,
+    required this.tutor,
+    required this.student,
+  });
+}
+
 class SessionRepository {
   final _firestore = FirebaseFirestore.instance;
   static const String _roomAlphabet =
@@ -101,9 +125,49 @@ class SessionRepository {
         );
   }
 
-  // ── Cancel a session — deletes the document so the slot becomes free ──────
+  // ── Cancel a session by updating status (keeps historical data) ───────────
   Future<void> cancelSession(String sessionId) async {
-    await _firestore.collection('sessions').doc(sessionId).delete();
+    await _firestore.collection('sessions').doc(sessionId).update({
+      'status': 'cancelled',
+      'cancelledAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Stream<SessionModel?> sessionById(String sessionId) {
+    return _firestore.collection('sessions').doc(sessionId).snapshots().map((
+      doc,
+    ) {
+      if (!doc.exists) return null;
+      return SessionModel.fromFirestore(doc);
+    });
+  }
+
+  Stream<SessionDetailsData?> streamSessionDetails(String sessionId) {
+    return sessionById(sessionId).asyncMap((session) async {
+      if (session == null) return null;
+
+      final tutor = await _tutorParticipant(session.tutorId);
+      final student = await _studentParticipant(session.studentId);
+
+      return SessionDetailsData(session: session, tutor: tutor, student: student);
+    });
+  }
+
+  bool canJoinSession(SessionModel session, {DateTime? now}) {
+    final current = now ?? DateTime.now();
+    final normalizedStatus = session.status.toLowerCase();
+    final isApproved = normalizedStatus == 'approved' ||
+        normalizedStatus == 'confirmed' ||
+        normalizedStatus == 'booked';
+    if (!isApproved) return false;
+
+    // Allow joining shortly before and during a session.
+    final joinWindowStart = session.dateTime.subtract(const Duration(minutes: 15));
+    final joinWindowEnd = session.dateTime.add(
+      Duration(minutes: session.durationMinutes),
+    );
+    return current.isAfter(joinWindowStart) && current.isBefore(joinWindowEnd);
   }
 
   // ── TUTOR QUERIES ────────────────────────────────────────────────────────
@@ -151,6 +215,29 @@ class SessionRepository {
     return (data['name'] ?? data['displayName'] ?? 'Unknown Tutor').toString();
   }
 
+  Future<SessionParticipant> _tutorParticipant(String tutorId) async {
+    if (tutorId.isEmpty) {
+      return const SessionParticipant(id: '', name: 'Unknown Tutor');
+    }
+
+    try {
+      final doc = await _firestore.collection('tutors').doc(tutorId).get();
+      if (!doc.exists) {
+        return SessionParticipant(id: tutorId, name: 'Unknown Tutor');
+      }
+
+      final data = doc.data() ?? <String, dynamic>{};
+      return SessionParticipant(
+        id: doc.id,
+        name: (data['name'] ?? data['displayName'] ?? 'Unknown Tutor').toString(),
+        photoUrl: (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
+            ?.toString(),
+      );
+    } catch (_) {
+      return SessionParticipant(id: tutorId, name: 'Unknown Tutor');
+    }
+  }
+
   // ── Fetch student name for a single studentId ────────────────────────────
   Future<String> _studentName(String studentId) async {
     if (studentId.isEmpty) return 'Unknown Student';
@@ -165,15 +252,45 @@ class SessionRepository {
     }
   }
 
+  Future<SessionParticipant> _studentParticipant(String studentId) async {
+    if (studentId.isEmpty) {
+      return const SessionParticipant(id: '', name: 'Unknown Student');
+    }
+
+    try {
+      final doc = await _firestore.collection('users').doc(studentId).get();
+      if (!doc.exists) {
+        return SessionParticipant(id: studentId, name: 'Unknown Student');
+      }
+
+      final data = doc.data() ?? <String, dynamic>{};
+      return SessionParticipant(
+        id: doc.id,
+        name: (data['name'] ?? data['displayName'] ?? 'Unknown Student').toString(),
+        photoUrl: (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
+            ?.toString(),
+      );
+    } catch (_) {
+      return SessionParticipant(id: studentId, name: 'Unknown Student');
+    }
+  }
+
   Future<List<SessionModel>> _enrichWithTutorNames(
     List<SessionModel> sessions,
   ) async {
     // batch unique tutor IDs
     final ids = sessions.map((s) => s.tutorId).toSet();
-    final names = <String, String>{};
-    await Future.wait(ids.map((id) async => names[id] = await _tutorName(id)));
+    final participants = <String, SessionParticipant>{};
+    await Future.wait(
+      ids.map((id) async => participants[id] = await _tutorParticipant(id)),
+    );
     return sessions
-        .map((s) => s.copyWith(tutorName: names[s.tutorId]))
+        .map(
+          (s) => s.copyWith(
+            tutorName: participants[s.tutorId]?.name,
+            tutorPhotoUrl: participants[s.tutorId]?.photoUrl,
+          ),
+        )
         .toList();
   }
 
@@ -183,12 +300,9 @@ class SessionRepository {
     // batch unique student IDs
     final ids = sessions.map((s) => s.studentId).toSet();
     final names = <String, String>{};
-    await Future.wait(
-      ids.map((id) async => names[id] = await _studentName(id)),
-    );
-    // Reuse tutorName field to store student name for tutor dashboard
+    await Future.wait(ids.map((id) async => names[id] = await _studentName(id)));
     return sessions
-        .map((s) => s.copyWith(tutorName: names[s.studentId]))
+        .map((s) => s.copyWith(studentName: names[s.studentId]))
         .toList();
   }
 }
