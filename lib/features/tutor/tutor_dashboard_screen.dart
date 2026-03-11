@@ -6,14 +6,12 @@ import '../tutor/other_tutors_tab.dart';
 import '../tutor/tutor_availability_screen.dart';
 import '../tutor/tutor_own_profile_screen.dart';
 import '../../repositories/tutor_auth_repository.dart';
+import '../../utils/app_transitions.dart';
 
 class TutorDashboardScreen extends StatefulWidget {
   final String tutorId;
 
-  const TutorDashboardScreen({
-    required this.tutorId,
-    super.key,
-  });
+  const TutorDashboardScreen({required this.tutorId, super.key});
 
   @override
   State<TutorDashboardScreen> createState() => _TutorDashboardScreenState();
@@ -59,10 +57,8 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => TutorOwnProfileScreen(
-                    tutorId: widget.tutorId,
-                  ),
+                AppTransitions.slideFromRight(
+                  page: TutorOwnProfileScreen(tutorId: widget.tutorId),
                 ),
               );
             },
@@ -73,10 +69,8 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => TutorAvailabilityScreen(
-                    tutorId: widget.tutorId,
-                  ),
+                AppTransitions.slideFromRight(
+                  page: TutorAvailabilityScreen(tutorId: widget.tutorId),
                 ),
               );
             },
@@ -107,14 +101,8 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
             icon: Icon(Icons.schedule),
             label: 'Upcoming',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Past',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.people),
-            label: 'Tutors',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Past'),
+          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Tutors'),
         ],
       ),
     );

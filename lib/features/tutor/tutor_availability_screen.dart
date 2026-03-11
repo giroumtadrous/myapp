@@ -6,13 +6,11 @@ import '../../repositories/tutors_repository.dart';
 class TutorAvailabilityScreen extends StatefulWidget {
   final String tutorId;
 
-  const TutorAvailabilityScreen({
-    required this.tutorId,
-    super.key,
-  });
+  const TutorAvailabilityScreen({required this.tutorId, super.key});
 
   @override
-  State<TutorAvailabilityScreen> createState() => _TutorAvailabilityScreenState();
+  State<TutorAvailabilityScreen> createState() =>
+      _TutorAvailabilityScreenState();
 }
 
 class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
@@ -36,9 +34,8 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
       });
 
       // Fetch current availability from weeklyAvailability field
-      var availability = await _tutorsRepository.getTutorAvailability(widget.tutorId);
-      debugPrint(
-        'TutorAvailabilityScreen: loaded weeklyAvailability for ${widget.tutorId}: $availability',
+      var availability = await _tutorsRepository.getTutorAvailability(
+        widget.tutorId,
       );
 
       // Initialize all days with empty list if not present
@@ -86,9 +83,6 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
         widget.tutorId,
         _availability,
       );
-      debugPrint(
-        'TutorAvailabilityScreen: saved weeklyAvailability for ${widget.tutorId}: $_availability',
-      );
 
       setState(() {
         _isSaving = false;
@@ -120,45 +114,43 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Availability'),
-      ),
+      appBar: AppBar(title: const Text('Edit Availability')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-              ? _buildErrorWidget()
-              : SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text(
-                          'Select available hours for each day',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ),
-                      ...daysOfWeek.map((day) => _buildDaySection(day)),
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: _isSaving ? null : _saveAvailability,
-                            child: _isSaving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Save Availability'),
-                          ),
-                        ),
-                      ),
-                    ],
+          ? _buildErrorWidget()
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      'Select available hours for each day',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
-                ),
+                  ...daysOfWeek.map((day) => _buildDaySection(day)),
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _saveAvailability,
+                        child: _isSaving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Save Availability'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 
@@ -195,9 +187,9 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
         children: [
           Text(
             dayDisplayName,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -212,9 +204,9 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
           if (hours.isNotEmpty)
             Text(
               'Selected: ${hours.join(', ')}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
             ),
           Divider(color: Colors.grey[300]),
         ],

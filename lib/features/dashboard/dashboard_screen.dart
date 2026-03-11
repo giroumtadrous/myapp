@@ -8,7 +8,11 @@ import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../services/user_service.dart';
+import '../../utils/app_transitions.dart';
+import '../../utils/meeting_utils.dart';
+import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/category_chip.dart';
+import '../../widgets/fade_in_stagger.dart';
 import '../../models/subject_categories.dart';
 import '../../widgets/search_bar_widget.dart';
 import '../../widgets/session_card.dart';
@@ -38,20 +42,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedCategoryIndex = 0;
   String? _selectedSubject;
   String _searchQuery = '';
-
-  @override
-  void initState() {
-    super.initState();
-
-    // log the current mapping of subjects grouped by their "main" categories.
-    // this satisfies the request to "print the subjects" categorized by main.
-    _tutorsRepository.getSubjectsGroupedByMain().listen((map) {
-      debugPrint('=== subjects grouped by main ===');
-      map.forEach((main, subjects) {
-        debugPrint('$main -> $subjects');
-      });
-    });
-  }
 
   /// compute unique, sorted list of subjects from a list of tutors.
   /// Optionally restrict to the provided [mainCategory]; when null (or
@@ -177,14 +167,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         selectedCategoryId == 'all' ? null : selectedCategoryId,
                       );
 
-                      // log subjects so they are printed whenever the stream
-                      // updates, fulfilling the "print the subjects" requirement
-                      if (subjects.isNotEmpty) {
-                        debugPrint(
-                          'Subjects for $selectedCategoryId: $subjects',
-                        );
-                      }
-
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -291,19 +273,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                             )
                                             .toList();
 
-                                  return TutorCard(
-                                    tutor: tutor,
-                                    visibleSubjects: visible.isEmpty
-                                        ? null
-                                        : visible,
-                                    onTap: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              TutorBookingScreen(tutor: tutor),
-                                        ),
-                                      );
-                                    },
+                                  return FadeInStagger(
+                                    index: index,
+                                    child: TutorCard(
+                                      tutor: tutor,
+                                      visibleSubjects: visible.isEmpty
+                                          ? null
+                                          : visible,
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          AppTransitions.slideFromRight(
+                                            page: TutorBookingScreen(
+                                              tutor: tutor,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   );
                                 },
                               ),
@@ -336,16 +322,6 @@ class _UpcomingSessionsList extends StatelessWidget {
 
   const _UpcomingSessionsList({required this.sessionRepository});
 
-  String _meetingDisplayName(User user) {
-    final displayName = (user.displayName ?? '').trim();
-    if (displayName.isNotEmpty) return displayName;
-
-    final email = (user.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-
-    return 'Student';
-  }
-
   Future<void> _startMeeting(
     BuildContext context,
     SessionModel session,
@@ -359,7 +335,7 @@ class _UpcomingSessionsList extends StatelessWidget {
 
       await JitsiMeetService.instance.startMeeting(
         roomName: roomName,
-        userName: _meetingDisplayName(user),
+        userName: resolveMeetingDisplayName(user, fallback: 'Student'),
       );
     } catch (e) {
       if (!context.mounted) return;
@@ -426,7 +402,9 @@ class _UpcomingSessionsList extends StatelessWidget {
       stream: sessionRepository.upcomingSessions(currentUser.uid),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const AppLoadingIndicator(
+            message: 'Loading upcoming sessions...',
+          );
         }
         final sessions = snapshot.data ?? [];
         if (sessions.isEmpty) {
@@ -457,8 +435,8 @@ class _UpcomingSessionsList extends StatelessWidget {
                 isActive: false,
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SessionDetailsScreen(sessionId: s.id),
+                    AppTransitions.slideFromRight(
+                      page: SessionDetailsScreen(sessionId: s.id),
                     ),
                   );
                 },
@@ -483,7 +461,7 @@ class _TutorsLoadingState extends StatelessWidget {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(24),
-        child: CircularProgressIndicator(),
+        child: AppLoadingIndicator(message: 'Fetching tutors...'),
       ),
     );
   }

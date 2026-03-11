@@ -48,9 +48,6 @@ class PaymentRepository {
     required String screenshotUrl,
     String? note,
   }) async {
-    final startedAt = DateTime.now();
-    print('[Payment] submitManualPayment started for sessionId=$sessionId');
-
     try {
       if (screenshotUrl.trim().isEmpty) {
         throw Exception('Screenshot URL cannot be empty.');
@@ -59,11 +56,9 @@ class PaymentRepository {
       final paymentRef = _firestore.collection('payments').doc();
       final sessionRef = _firestore.collection('sessions').doc(sessionId);
 
-      print('[Payment] Transaction step started');
       await _firestore
           .runTransaction((tx) async {
             try {
-              print('[Payment][Tx] Reading session doc: ${sessionRef.id}');
               final existingSession = await tx.get(sessionRef);
               if (existingSession.exists) {
                 final data = existingSession.data() ?? <String, dynamic>{};
@@ -81,13 +76,12 @@ class PaymentRepository {
               final roomName = existingRoomName.isNotEmpty
                   ? existingRoomName
                   : _generateRandomRoomName();
-                final existingMeetLink = (existingData['meetLink'] ?? '')
+              final existingMeetLink = (existingData['meetLink'] ?? '')
                   .toString();
-                final meetLink = existingMeetLink.isNotEmpty
+              final meetLink = existingMeetLink.isNotEmpty
                   ? existingMeetLink
                   : _jitsiMeetLink(roomName);
 
-              print('[Payment][Tx] Writing payment doc: ${paymentRef.id}');
               tx.set(paymentRef, {
                 'studentId': studentId,
                 'tutorId': tutorId,
@@ -117,24 +111,17 @@ class PaymentRepository {
               };
 
               if (existingSession.exists) {
-                print(
-                  '[Payment][Tx] Updating existing session doc: ${sessionRef.id}',
-                );
                 tx.update(sessionRef, {
                   ...sessionData,
                   'updatedAt': FieldValue.serverTimestamp(),
                 });
               } else {
-                print(
-                  '[Payment][Tx] Creating new session doc: ${sessionRef.id}',
-                );
                 tx.set(sessionRef, {
                   ...sessionData,
                   'createdAt': FieldValue.serverTimestamp(),
                 });
               }
             } catch (e) {
-              print('[Payment][Tx] Transaction body failed: $e');
               rethrow;
             }
           })
@@ -146,21 +133,11 @@ class PaymentRepository {
               );
             },
           );
-
-      final totalMs = DateTime.now().difference(startedAt).inMilliseconds;
-      print(
-        '[Payment] Transaction step done. submitManualPayment finished in ${totalMs}ms',
-      );
     } on FirebaseException catch (e) {
-      print(
-        '[Payment] FirebaseException in submitManualPayment: code=${e.code}, message=${e.message}',
-      );
       throw Exception(e.message ?? 'Firebase error while submitting payment.');
     } on TimeoutException catch (e) {
-      print('[Payment] TimeoutException in submitManualPayment: ${e.message}');
       throw Exception(e.message ?? 'The request timed out. Please try again.');
-    } catch (e) {
-      print('[Payment] Unknown error in submitManualPayment: $e');
+    } catch (_) {
       rethrow;
     }
   }
@@ -191,8 +168,12 @@ class PaymentRepository {
       final sessionData = sessionSnap.data() ?? <String, dynamic>{};
       final rawRoomName = (sessionData['roomName'] ?? '').toString().trim();
       final needsRandomRoom =
-          rawRoomName.isEmpty || rawRoomName == sessionId || rawRoomName.startsWith('session_');
-      final roomName = needsRandomRoom ? _generateRandomRoomName() : rawRoomName;
+          rawRoomName.isEmpty ||
+          rawRoomName == sessionId ||
+          rawRoomName.startsWith('session_');
+      final roomName = needsRandomRoom
+          ? _generateRandomRoomName()
+          : rawRoomName;
 
       tx.update(paymentRef, {
         'status': paymentStatus,

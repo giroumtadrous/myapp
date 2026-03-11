@@ -7,6 +7,11 @@ import '../../models/session_model.dart';
 import '../../repositories/payment_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
+import '../../utils/app_transitions.dart';
+import '../../utils/meeting_utils.dart';
+import '../../utils/session_status_utils.dart';
+import '../../widgets/app_loading_indicator.dart';
+import '../../widgets/fade_in_stagger.dart';
 import '../../widgets/session_card.dart';
 import 'manual_payment_screen.dart';
 import 'session_details_screen.dart';
@@ -22,16 +27,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   final PaymentRepository _paymentRepository = PaymentRepository();
 
-  String _meetingDisplayName(User user) {
-    final displayName = (user.displayName ?? '').trim();
-    if (displayName.isNotEmpty) return displayName;
-
-    final email = (user.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-
-    return 'Student';
-  }
-
   Future<void> _startMeeting(SessionModel session, User user) async {
     try {
       final roomName = await _sessionRepository.ensureSessionRoomName(
@@ -41,38 +36,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       await JitsiMeetService.instance.startMeeting(
         roomName: roomName,
-        userName: _meetingDisplayName(user),
+        userName: resolveMeetingDisplayName(user, fallback: 'Student'),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'booked':
-      case 'confirmed':
-        return Colors.green;
-      case 'pending_payment_verification':
-        return Colors.orange;
-      case 'payment_rejected':
-        return Colors.red;
-      default:
-        return Colors.blueGrey;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'pending_payment_verification':
-        return 'Pending';
-      case 'payment_rejected':
-        return 'Payment Rejected';
-      default:
-        return status;
     }
   }
 
@@ -150,7 +120,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   stream: _sessionRepository.upcomingSessions(user.uid),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const AppLoadingIndicator(
+                        message: 'Loading your sessions...',
+                      );
                     }
 
                     final sessions = snapshot.data ?? [];
@@ -171,79 +143,87 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final session = sessions[index];
-                        final isSessionConfirmed = session.status == 'confirmed';
+                        final isSessionConfirmed =
+                            session.status == 'confirmed';
 
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SessionCard(
-                              tutorName: session.tutorName ?? session.tutorId,
-                              subject: session.subject,
-                              date: DateFormat.yMMMd().format(session.dateTime),
-                              timeRange: DateFormat.jm().format(
-                                session.dateTime,
+                        return FadeInStagger(
+                          index: index,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              SessionCard(
+                                tutorName: session.tutorName ?? session.tutorId,
+                                subject: session.subject,
+                                date: DateFormat.yMMMd().format(
+                                  session.dateTime,
+                                ),
+                                timeRange: DateFormat.jm().format(
+                                  session.dateTime,
+                                ),
+                                statusLabel: sessionStatusLabel(session.status),
+                                statusColor: sessionStatusColor(session.status),
+                                isActive: false,
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    AppTransitions.slideFromRight(
+                                      page: SessionDetailsScreen(
+                                        sessionId: session.id,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onJoinMeet: isSessionConfirmed
+                                    ? () => _startMeeting(session, user)
+                                    : null,
                               ),
-                              statusLabel: _statusLabel(session.status),
-                              statusColor: _statusColor(session.status),
-                              isActive: false,
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => SessionDetailsScreen(
-                                      sessionId: session.id,
+                              if (session.status ==
+                                  'pending_payment_verification')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    'Waiting for payment confirmation',
+                                    style: textTheme.bodyMedium?.copyWith(
+                                      color: Colors.orange[800],
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                );
-                              },
-                              onJoinMeet: isSessionConfirmed
-                                  ? () => _startMeeting(session, user)
-                                  : null,
-                            ),
-                            if (session.status ==
-                                'pending_payment_verification')
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  'Waiting for payment confirmation',
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: Colors.orange[800],
-                                    fontWeight: FontWeight.w600,
-                                  ),
                                 ),
-                              ),
-                            if (session.status == 'payment_rejected')
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => ManualPaymentScreen(
-                                          sessionId: session.id,
-                                          tutorId: session.tutorId,
-                                          subject: session.subject,
-                                          date: DateFormat(
-                                            'yyyy-MM-dd',
-                                          ).format(session.dateTime),
-                                          time: DateFormat(
-                                            'HH:mm',
-                                          ).format(session.dateTime),
-                                          timeDisplay: DateFormat.jm().format(
-                                            session.dateTime,
+                              if (session.status == 'payment_rejected')
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.of(context).push(
+                                        AppTransitions.slideFromRight(
+                                          page: ManualPaymentScreen(
+                                            sessionId: session.id,
+                                            tutorId: session.tutorId,
+                                            subject: session.subject,
+                                            date: DateFormat(
+                                              'yyyy-MM-dd',
+                                            ).format(session.dateTime),
+                                            time: DateFormat(
+                                              'HH:mm',
+                                            ).format(session.dateTime),
+                                            timeDisplay: DateFormat.jm().format(
+                                              session.dateTime,
+                                            ),
+                                            sessionDateTime: session.dateTime,
+                                            amount: session.amount,
                                           ),
-                                          sessionDateTime: session.dateTime,
-                                          amount: session.amount,
                                         ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.upload_file_outlined),
-                                  label: const Text(
-                                    'Upload Correct Payment Proof',
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.upload_file_outlined,
+                                    ),
+                                    label: const Text(
+                                      'Upload Correct Payment Proof',
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         );
                       },
                     );

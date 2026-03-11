@@ -6,7 +6,11 @@ import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/tutor_model.dart';
+import '../../utils/app_transitions.dart';
+import '../../utils/hero_tags.dart';
+import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/expertise_chip.dart';
+import '../../widgets/pressable_scale.dart';
 import '../../widgets/stat_card.dart';
 import '../../widgets/time_slot_button.dart';
 import 'manual_payment_screen.dart';
@@ -14,10 +18,7 @@ import 'manual_payment_screen.dart';
 class TutorBookingScreen extends StatefulWidget {
   final Tutor tutor;
 
-  const TutorBookingScreen({
-    super.key,
-    required this.tutor,
-  });
+  const TutorBookingScreen({super.key, required this.tutor});
 
   @override
   State<TutorBookingScreen> createState() => _TutorBookingScreenState();
@@ -25,7 +26,7 @@ class TutorBookingScreen extends StatefulWidget {
 
 class _TutorBookingScreenState extends State<TutorBookingScreen> {
   static const _reviewsCount = 124;
-  
+
   int _selectedSubjectIndex = 0;
   late TextEditingController _notesController;
   DateTime _focusedDay = DateTime.now();
@@ -36,7 +37,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   // Dates (normalised to midnight) that have ≥1 available slot
   Set<DateTime> _daysWithSlots = {};
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
-      _tutorDocSubscription;
+  _tutorDocSubscription;
 
   @override
   void initState() {
@@ -53,17 +54,12 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         .doc(widget.tutor.id)
         .snapshots()
         .listen((snapshot) {
-      if (!mounted || !snapshot.exists) return;
-      final data = snapshot.data() ?? <String, dynamic>{};
-      final weekly = _extractWeeklyAvailability(data);
-      debugPrint(
-        'TutorBookingScreen: weeklyAvailability updated for ${widget.tutor.id}: $weekly',
-      );
-      _loadAvailableDays(_focusedDay);
-      if (_selectedDay != null) {
-        _loadSlotsForDate(_selectedDay!);
-      }
-    });
+          if (!mounted || !snapshot.exists) return;
+          _loadAvailableDays(_focusedDay);
+          if (_selectedDay != null) {
+            _loadSlotsForDate(_selectedDay!);
+          }
+        });
   }
 
   Map<String, List<String>> _extractWeeklyAvailability(
@@ -75,8 +71,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     final result = <String, List<String>>{};
     raw.forEach((key, value) {
       if (value is List) {
-        result[key.toString().toLowerCase()] =
-            List<String>.from(value.map((e) => e.toString()));
+        result[key.toString().toLowerCase()] = List<String>.from(
+          value.map((e) => e.toString()),
+        );
       }
     });
     return result;
@@ -93,8 +90,8 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       final data = tutorDoc.data();
       if (data == null) return;
 
-        final weekly = _extractWeeklyAvailability(data);
-        if (weekly.isEmpty) return;
+      final weekly = _extractWeeklyAvailability(data);
+      if (weekly.isEmpty) return;
 
       // Collect all dates in the visible month
       final firstDay = DateTime(month.year, month.month, 1);
@@ -104,12 +101,15 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       final qs = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
-          .where('status', whereIn: [
-            'pending',
-            'confirmed',
-            'booked',
-            'pending_payment_verification',
-          ])
+          .where(
+            'status',
+            whereIn: [
+              'pending',
+              'confirmed',
+              'booked',
+              'pending_payment_verification',
+            ],
+          )
           .get();
 
       // Build a set of 'yyyy-MM-dd|HH:mm' strings that are occupied
@@ -145,7 +145,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   /// Pure helper — generates 'HH:mm|display' slot strings for [date] given the
   /// tutor's [weekly] availability map. No network calls.
   List<String> _generateSlotsForDay(
-      DateTime date, Map<String, List<String>> weekly) {
+    DateTime date,
+    Map<String, List<String>> weekly,
+  ) {
     final weekdayName = DateFormat.EEEE().format(date).toLowerCase();
     final avail = weekly[weekdayName] ?? [];
     if (avail.isEmpty) return [];
@@ -158,9 +160,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         slots.add(
           '${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}',
         );
-      } catch (_) {
-        debugPrint('TutorBookingScreen: Invalid slot format "$t"');
-      }
+      } catch (_) {}
     }
     return slots;
   }
@@ -173,23 +173,18 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
   }
 
   Future<void> _loadSlotsForDate(DateTime date) async {
-    debugPrint('=== _loadSlotsForDate called ===');
     setState(() => _loadingSlots = true);
 
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    debugPrint('Loading slots for date: $dateStr');
 
     try {
-      debugPrint('Fetching tutor data for ID: ${widget.tutor.id}');
       final tutorDoc = await FirebaseFirestore.instance
           .collection('tutors')
           .doc(widget.tutor.id)
           .get();
       final data = tutorDoc.data();
-      debugPrint('Tutor document exists: ${tutorDoc.exists}');
 
       if (data == null) {
-        debugPrint('ERROR: Tutor data is null');
         setState(() {
           _availableSlots = [];
           _loadingSlots = false;
@@ -197,32 +192,24 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         return;
       }
 
-      debugPrint(
-        'Firestore weeklyAvailability: ${data['weeklyAvailability'] ?? data['weekly_availability']}',
-      );
-
       final weekly = _extractWeeklyAvailability(data);
       final slots = _generateSlotsForDay(date, weekly);
-      debugPrint('Generated slots: $slots');
 
       // Query booked sessions for this tutor on the selected date
-      debugPrint('Querying sessions for tutorId: ${widget.tutor.id}, date: $dateStr');
       final querySnapshot = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
           .where('date', isEqualTo: dateStr)
-          .where('status', whereIn: [
-            'confirmed',
-            'pending',
-            'booked',
-            'pending_payment_verification',
-          ])
+          .where(
+            'status',
+            whereIn: [
+              'confirmed',
+              'pending',
+              'booked',
+              'pending_payment_verification',
+            ],
+          )
           .get();
-
-      debugPrint('Query returned ${querySnapshot.docs.length} documents');
-      for (final doc in querySnapshot.docs) {
-        debugPrint('Session doc data: ${doc.data()}');
-      }
 
       final occupied = <String>{};
       for (final doc in querySnapshot.docs) {
@@ -230,10 +217,14 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         final time = d['time']?.toString();
         if (time != null) {
           try {
-            occupied.add(DateFormat('HH:mm').format(DateFormat('HH:mm').parseLoose(time)));
+            occupied.add(
+              DateFormat('HH:mm').format(DateFormat('HH:mm').parseLoose(time)),
+            );
           } catch (_) {
             try {
-              occupied.add(DateFormat('HH:mm').format(DateFormat.jm().parseLoose(time)));
+              occupied.add(
+                DateFormat('HH:mm').format(DateFormat.jm().parseLoose(time)),
+              );
             } catch (_) {
               occupied.add(time);
             }
@@ -245,24 +236,23 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           .where((s) => !occupied.contains(s.split('|')[0]))
           .toList();
 
-      debugPrint('Occupied slots: $occupied');
-      debugPrint('Available slots: $available');
-
       setState(() => _availableSlots = available);
-      debugPrint('UI updated with ${_availableSlots.length} available slots');
     } catch (e) {
-      debugPrint('ERROR in _loadSlotsForDate: $e');
       setState(() => _availableSlots = []);
     } finally {
       setState(() => _loadingSlots = false);
-      debugPrint('=== _loadSlotsForDate finished ===');
     }
   }
 
-  Future<void> _createBooking(BuildContext context, DateTime date,
-      String slotValue, String slotDisplay) async {
+  Future<void> _createBooking(
+    BuildContext context,
+    DateTime date,
+    String slotValue,
+    String slotDisplay,
+  ) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final docId = '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
+    final docId =
+        '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
     final sessionDateTime = DateTime(
       date.year,
       date.month,
@@ -272,8 +262,8 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     );
 
     Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ManualPaymentScreen(
+      AppTransitions.slideFromRight(
+        page: ManualPaymentScreen(
           sessionId: docId,
           tutorId: widget.tutor.id,
           subject: widget.tutor.subjects[_selectedSubjectIndex],
@@ -293,7 +283,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       children: [
         Text(
           'Choose a Date',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         TableCalendar(
@@ -341,15 +333,21 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           _selectedDay == null
               ? 'Select a date to see available times'
               : 'Available times - ${DateFormat.yMMMd().format(_selectedDay!)}',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: Colors.grey[800]),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[800],
+          ),
         ),
         const SizedBox(height: 12),
         if (_loadingSlots)
-          const Center(child: CircularProgressIndicator())
+          const AppLoadingIndicator(message: 'Loading available slots...')
         else if (_availableSlots.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Text('No available slots for this date.', style: Theme.of(context).textTheme.bodyMedium),
+            child: Text(
+              'No available slots for this date.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
           )
         else
           Wrap(
@@ -376,10 +374,6 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    /*final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
-*/
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -389,10 +383,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         title: const Text('Tutor Profile'),
         centerTitle: true,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.share_rounded),
-            onPressed: () {},
-          ),
+          IconButton(icon: const Icon(Icons.share_rounded), onPressed: () {}),
         ],
       ),
       body: Column(
@@ -437,7 +428,9 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
             onConfirm: () async {
               if (_selectedDay == null || _selectedSlotIndex == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Please select a date and time slot.')),
+                  SnackBar(
+                    content: Text('Please select a date and time slot.'),
+                  ),
                 );
                 return;
               }
@@ -468,11 +461,18 @@ class _TutorHeader extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 48,
-          backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
-          child: Icon(
-            Icons.person,
-            size: 56,
-            color: theme.colorScheme.primary,
+          backgroundColor: Colors.transparent,
+          child: Hero(
+            tag: tutorAvatarHeroTag(tutor.id),
+            child: CircleAvatar(
+              radius: 48,
+              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+              child: Icon(
+                Icons.person,
+                size: 56,
+                color: theme.colorScheme.primary,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 16),
@@ -486,9 +486,7 @@ class _TutorHeader extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           '${tutor.subjects.join(', ')} Specialist',
-          style: textTheme.bodyMedium?.copyWith(
-            color: Colors.grey[700],
-          ),
+          style: textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 10),
@@ -523,32 +521,35 @@ class _ActionButtons extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: ElevatedButton(
-            onPressed: () {},
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+          child: PressableScale(
+            child: ElevatedButton(
+              onPressed: () {},
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
+              child: const Text('Book Session'),
             ),
-            child: const Text('Book Session'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: OutlinedButton(
-            onPressed: () {},
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+          child: PressableScale(
+            child: OutlinedButton(
+              onPressed: () {},
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.primary.withOpacity(0.06),
               ),
-              backgroundColor: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withOpacity(0.06),
+              child: const Text('Message'),
             ),
-            child: const Text('Message'),
           ),
         ),
       ],
@@ -560,21 +561,14 @@ class _StatsSection extends StatelessWidget {
   final double rating;
   final int reviewsCount;
 
-  const _StatsSection({
-    required this.rating,
-    required this.reviewsCount,
-  });
+  const _StatsSection({required this.rating, required this.reviewsCount});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         StatCard(
-          leading: Icon(
-            Icons.star_rounded,
-            color: Colors.amber[600],
-            size: 28,
-          ),
+          leading: Icon(Icons.star_rounded, color: Colors.amber[600], size: 28),
           value: rating.toStringAsFixed(1),
           label: 'Rating',
         ),
@@ -653,9 +647,7 @@ class _AboutSection extends StatelessWidget {
       children: [
         Text(
           'About',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         Text(
@@ -690,9 +682,7 @@ class _ExpertiseSection extends StatelessWidget {
       children: [
         Text(
           'Select Subject for This Session',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -732,9 +722,7 @@ class _NotesSection extends StatelessWidget {
       children: [
         Text(
           'Add Notes for Tutor',
-          style: textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -766,10 +754,7 @@ class _BottomBookingBar extends StatelessWidget {
   final double price;
   final VoidCallback onConfirm;
 
-  const _BottomBookingBar({
-    required this.price,
-    required this.onConfirm,
-  });
+  const _BottomBookingBar({required this.price, required this.onConfirm});
 
   @override
   Widget build(BuildContext context) {
@@ -813,15 +798,17 @@ class _BottomBookingBar extends StatelessWidget {
               ),
               const SizedBox(width: 24),
               Expanded(
-                child: ElevatedButton(
-                  onPressed: onConfirm,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                child: PressableScale(
+                  child: ElevatedButton(
+                    onPressed: onConfirm,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
+                    child: const Text('Confirm Booking'),
                   ),
-                  child: const Text('Confirm Booking'),
                 ),
               ),
             ],

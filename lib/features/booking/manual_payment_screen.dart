@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../repositories/payment_repository.dart';
+import '../../utils/app_transitions.dart';
+import '../../widgets/pressable_scale.dart';
 import '../dashboard/main_navigation_screen.dart';
 
 class ManualPaymentScreen extends StatefulWidget {
@@ -37,7 +39,8 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
   final PaymentRepository _paymentRepository = PaymentRepository();
   final TextEditingController _timeController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final TextEditingController _screenshotUrlController = TextEditingController();
+  final TextEditingController _screenshotUrlController =
+      TextEditingController();
 
   DateTime? _transferTime;
   bool _submitting = false;
@@ -81,18 +84,15 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
   }
 
   Future<void> _submit() async {
-    print('[ManualPaymentUI] Submit tapped');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      print('[ManualPaymentUI] User missing. Abort submit');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please sign in again.')));
       return;
     }
 
     if (_screenshotUrlController.text.trim().isEmpty) {
-      print('[ManualPaymentUI] Screenshot URL missing. Abort submit');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please paste a screenshot image URL.')),
       );
@@ -100,18 +100,15 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     }
 
     if (_transferTime == null) {
-      print('[ManualPaymentUI] Transfer time missing. Abort submit');
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please provide transfer time.')),
       );
       return;
     }
 
-    final startedAt = DateTime.now();
     setState(() => _submitting = true);
 
     try {
-      print('[ManualPaymentUI] Calling submitManualPayment...');
       await _paymentRepository.submitManualPayment(
         sessionId: widget.sessionId,
         studentId: user.uid,
@@ -127,32 +124,23 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
         note: _noteController.text,
       );
 
-      final totalMs = DateTime.now().difference(startedAt).inMilliseconds;
-      print('[ManualPaymentUI] submitManualPayment completed in ${totalMs}ms');
-
       if (!mounted) return;
-
-      print('[ManualPaymentUI] Navigating to main screen after success');
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+        AppTransitions.fade(page: const MainNavigationScreen()),
         (route) => false,
       );
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Payment submitted. Waiting for payment confirmation.',
-          ),
+          content: Text('Payment submitted. Waiting for payment confirmation.'),
         ),
       );
     } catch (e) {
-      print('[ManualPaymentUI] Submit failed: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit payment: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to submit payment: $e')));
     } finally {
-      print('[ManualPaymentUI] Submit finished. Releasing loading state');
       if (mounted) {
         setState(() => _submitting = false);
       }
@@ -216,9 +204,7 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
               const SizedBox(height: 12),
               Text(
                 'Upload your screenshot to Google Drive (or similar) and paste the shareable link below:',
-                style: textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                ),
+                style: textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -226,7 +212,8 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
                 enabled: !_submitting,
                 decoration: const InputDecoration(
                   labelText: 'Screenshot image URL',
-                  hintText: 'Paste the direct image link here (e.g., https://drive.google.com/...)',
+                  hintText:
+                      'Paste the direct image link here (e.g., https://drive.google.com/...)',
                   suffixIcon: Icon(Icons.link_outlined),
                 ),
                 minLines: 2,
@@ -257,15 +244,17 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
               const SizedBox(height: 28),
               SizedBox(
                 width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Submit payment for verification'),
+                child: PressableScale(
+                  child: ElevatedButton(
+                    onPressed: _submitting ? null : _submit,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Submit payment for verification'),
+                  ),
                 ),
               ),
             ],

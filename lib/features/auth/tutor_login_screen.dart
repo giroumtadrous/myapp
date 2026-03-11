@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../repositories/tutor_auth_repository.dart';
 import '../../features/auth/login_screen.dart';
+import '../../utils/app_transitions.dart';
+import '../../widgets/pressable_scale.dart';
 
 class TutorLoginScreen extends StatefulWidget {
   const TutorLoginScreen({super.key});
@@ -147,15 +149,19 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _signIn,
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Log in as Tutor'),
+                    child: PressableScale(
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _signIn,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Log in as Tutor'),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -165,8 +171,8 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
                           ? null
                           : () {
                               Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const LoginScreen(),
+                                AppTransitions.slideFromRight(
+                                  page: const LoginScreen(),
                                 ),
                               );
                             },

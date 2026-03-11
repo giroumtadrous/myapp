@@ -150,20 +150,27 @@ class SessionRepository {
       final tutor = await _tutorParticipant(session.tutorId);
       final student = await _studentParticipant(session.studentId);
 
-      return SessionDetailsData(session: session, tutor: tutor, student: student);
+      return SessionDetailsData(
+        session: session,
+        tutor: tutor,
+        student: student,
+      );
     });
   }
 
   bool canJoinSession(SessionModel session, {DateTime? now}) {
     final current = now ?? DateTime.now();
     final normalizedStatus = session.status.toLowerCase();
-    final isApproved = normalizedStatus == 'approved' ||
+    final isApproved =
+        normalizedStatus == 'approved' ||
         normalizedStatus == 'confirmed' ||
         normalizedStatus == 'booked';
     if (!isApproved) return false;
 
     // Allow joining shortly before and during a session.
-    final joinWindowStart = session.dateTime.subtract(const Duration(minutes: 15));
+    final joinWindowStart = session.dateTime.subtract(
+      const Duration(minutes: 15),
+    );
     final joinWindowEnd = session.dateTime.add(
       Duration(minutes: session.durationMinutes),
     );
@@ -206,15 +213,6 @@ class SessionRepository {
         );
   }
 
-  // ── Fetch tutor name for a single tutorId ────────────────────────────────
-  Future<String> _tutorName(String tutorId) async {
-    if (tutorId.isEmpty) return 'Unknown Tutor';
-    final doc = await _firestore.collection('tutors').doc(tutorId).get();
-    if (!doc.exists) return 'Unknown Tutor';
-    final data = doc.data()!;
-    return (data['name'] ?? data['displayName'] ?? 'Unknown Tutor').toString();
-  }
-
   Future<SessionParticipant> _tutorParticipant(String tutorId) async {
     if (tutorId.isEmpty) {
       return const SessionParticipant(id: '', name: 'Unknown Tutor');
@@ -229,9 +227,11 @@ class SessionRepository {
       final data = doc.data() ?? <String, dynamic>{};
       return SessionParticipant(
         id: doc.id,
-        name: (data['name'] ?? data['displayName'] ?? 'Unknown Tutor').toString(),
-        photoUrl: (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
-            ?.toString(),
+        name: (data['name'] ?? data['displayName'] ?? 'Unknown Tutor')
+            .toString(),
+        photoUrl:
+            (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
+                ?.toString(),
       );
     } catch (_) {
       return SessionParticipant(id: tutorId, name: 'Unknown Tutor');
@@ -266,9 +266,11 @@ class SessionRepository {
       final data = doc.data() ?? <String, dynamic>{};
       return SessionParticipant(
         id: doc.id,
-        name: (data['name'] ?? data['displayName'] ?? 'Unknown Student').toString(),
-        photoUrl: (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
-            ?.toString(),
+        name: (data['name'] ?? data['displayName'] ?? 'Unknown Student')
+            .toString(),
+        photoUrl:
+            (data['photoUrl'] ?? data['profilePicture'] ?? data['avatarUrl'])
+                ?.toString(),
       );
     } catch (_) {
       return SessionParticipant(id: studentId, name: 'Unknown Student');
@@ -300,7 +302,9 @@ class SessionRepository {
     // batch unique student IDs
     final ids = sessions.map((s) => s.studentId).toSet();
     final names = <String, String>{};
-    await Future.wait(ids.map((id) async => names[id] = await _studentName(id)));
+    await Future.wait(
+      ids.map((id) async => names[id] = await _studentName(id)),
+    );
     return sessions
         .map((s) => s.copyWith(studentName: names[s.studentId]))
         .toList();

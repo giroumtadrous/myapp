@@ -85,6 +85,17 @@ class TutorAuthRepository {
     }
   }
 
+  /// Stream version of tutor lookup by Firebase Auth UID.
+  /// Keeps role routing reactive and avoids repeated one-off reads.
+  Stream<String?> watchTutorIdFromAuthUid(String uid) {
+    return _firestore
+        .collection('tutors')
+        .where('authUid', isEqualTo: uid)
+        .limit(1)
+        .snapshots()
+        .map((query) => query.docs.isNotEmpty ? query.docs.first.id : null);
+  }
+
   /// Gets the current authenticated user.
   User? getCurrentUser() {
     return _auth.currentUser;

@@ -6,14 +6,14 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
+import '../../utils/meeting_utils.dart';
+import '../../widgets/app_loading_indicator.dart';
+import '../../widgets/pressable_scale.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final String sessionId;
 
-  const SessionDetailsScreen({
-    super.key,
-    required this.sessionId,
-  });
+  const SessionDetailsScreen({super.key, required this.sessionId});
 
   @override
   State<SessionDetailsScreen> createState() => _SessionDetailsScreenState();
@@ -23,16 +23,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   bool _isCanceling = false;
   bool _isJoining = false;
-
-  String _meetingDisplayName(User user) {
-    final displayName = (user.displayName ?? '').trim();
-    if (displayName.isNotEmpty) return displayName;
-
-    final email = (user.email ?? '').trim();
-    if (email.isNotEmpty) return email.split('@').first;
-
-    return 'Participant';
-  }
 
   Future<void> _joinSession(SessionModel session) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -52,13 +42,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
       await JitsiMeetService.instance.startMeeting(
         roomName: roomName,
-        userName: _meetingDisplayName(user),
+        userName: resolveMeetingDisplayName(user),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not join session: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
     } finally {
       if (mounted) {
         setState(() => _isJoining = false);
@@ -98,9 +88,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to cancel session: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to cancel session: $e')));
     } finally {
       if (mounted) {
         setState(() => _isCanceling = false);
@@ -111,9 +101,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   Future<void> _openDocument(SessionDocument document) async {
     final uri = Uri.tryParse(document.url);
     if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid document URL.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Invalid document URL.')));
       return;
     }
 
@@ -127,7 +117,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
   bool _canCancel(SessionModel session) {
     final status = session.status.toLowerCase();
-    return status != 'cancelled' && status != 'completed' && status != 'rejected';
+    return status != 'cancelled' &&
+        status != 'completed' &&
+        status != 'rejected';
   }
 
   @override
@@ -138,7 +130,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         stream: _sessionRepository.streamSessionDetails(widget.sessionId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoadingIndicator(message: 'Loading details...');
           }
 
           if (snapshot.hasError) {
@@ -165,17 +157,12 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              _SectionCard(
+              _ExpandableSectionCard(
+                title: session.subject,
+                initiallyExpanded: true,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      session.subject,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 12),
                     _LabeledValue(
                       label: 'Status',
                       value: _titleCase(session.status),
@@ -203,8 +190,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     Text(
                       'Tutor Information',
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _PersonTile(
@@ -223,90 +210,81 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              _SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Notes',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      session.notes.trim().isEmpty
-                          ? 'No notes added for this session.'
-                          : session.notes,
-                    ),
-                  ],
+              _ExpandableSectionCard(
+                title: 'Notes',
+                child: Text(
+                  session.notes.trim().isEmpty
+                      ? 'No notes added for this session.'
+                      : session.notes,
                 ),
               ),
               const SizedBox(height: 12),
-              _SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Documents',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    if (session.documents.isEmpty)
-                      const Text('No documents uploaded.')
-                    else
-                      ...session.documents.map(
-                        (doc) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.description_outlined),
-                          title: Text(doc.name),
-                          subtitle: Text(doc.type ?? 'Document'),
-                          trailing: const Icon(Icons.open_in_new),
-                          onTap: () => _openDocument(doc),
-                        ),
+              _ExpandableSectionCard(
+                title: 'Documents',
+                child: session.documents.isEmpty
+                    ? const Text('No documents uploaded.')
+                    : Column(
+                        children: session.documents
+                            .map(
+                              (doc) => ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.description_outlined),
+                                title: Text(doc.name),
+                                subtitle: Text(doc.type ?? 'Document'),
+                                trailing: const Icon(Icons.open_in_new),
+                                onTap: () => _openDocument(doc),
+                              ),
+                            )
+                            .toList(),
                       ),
-                  ],
-                ),
               ),
               const SizedBox(height: 16),
               if (canJoin)
                 SizedBox(
                   width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _isJoining ? null : () => _joinSession(session),
-                    icon: _isJoining
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.video_call_outlined),
-                    label: Text(_isJoining ? 'Joining...' : 'Join Session'),
+                  child: PressableScale(
+                    child: FilledButton.icon(
+                      onPressed: _isJoining
+                          ? null
+                          : () => _joinSession(session),
+                      icon: _isJoining
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.video_call_outlined),
+                      label: Text(_isJoining ? 'Joining...' : 'Join Session'),
+                    ),
                   ),
                 ),
               if (!canJoin)
                 Text(
                   'Join button appears when the session is approved and close to start time.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[600],
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                 ),
               const SizedBox(height: 8),
               if (canCancel)
                 SizedBox(
                   width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _isCanceling ? null : () => _cancelSession(session),
-                    icon: _isCanceling
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.cancel_outlined),
-                    label: Text(_isCanceling ? 'Cancelling...' : 'Cancel Session'),
+                  child: PressableScale(
+                    child: OutlinedButton.icon(
+                      onPressed: _isCanceling
+                          ? null
+                          : () => _cancelSession(session),
+                      icon: _isCanceling
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.cancel_outlined),
+                      label: Text(
+                        _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -333,9 +311,48 @@ class _SectionCard extends StatelessWidget {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: child,
+      child: Padding(padding: const EdgeInsets.all(14), child: child),
+    );
+  }
+}
+
+class _ExpandableSectionCard extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  const _ExpandableSectionCard({
+    required this.title,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+          title: Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -345,10 +362,7 @@ class _LabeledValue extends StatelessWidget {
   final String label;
   final String value;
 
-  const _LabeledValue({
-    required this.label,
-    required this.value,
-  });
+  const _LabeledValue({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -362,9 +376,9 @@ class _LabeledValue extends StatelessWidget {
             child: Text(
               '$label:',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[700],
+              ),
             ),
           ),
           Expanded(child: Text(value)),
@@ -399,9 +413,9 @@ class _PersonTile extends StatelessWidget {
         Expanded(
           child: Text(
             name,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
           ),
         ),
       ],

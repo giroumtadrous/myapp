@@ -2,6 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../repositories/tutor_auth_repository.dart';
+import '../../utils/app_transitions.dart';
+import '../../widgets/app_loading_indicator.dart';
+import '../../widgets/pressable_scale.dart';
 import '../dashboard/main_navigation_screen.dart';
 import '../tutor/tutor_dashboard_screen.dart';
 import 'login_screen.dart';
@@ -20,30 +23,46 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+            body: AppLoadingIndicator(message: 'Checking session...'),
           );
         }
 
+        Widget child;
         if (!snapshot.hasData) {
-          return const SignInPage();
+          child = const SignInPage();
+        } else {
+          final user = snapshot.data!;
+          child = StreamBuilder<String?>(
+            stream: tutorAuthRepository.watchTutorIdFromAuthUid(user.uid),
+            builder: (context, tutorSnapshot) {
+              if (tutorSnapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: AppLoadingIndicator(message: 'Preparing dashboard...'),
+                );
+              }
+
+              if (tutorSnapshot.data != null) {
+                return TutorDashboardScreen(tutorId: tutorSnapshot.data!);
+              }
+
+              return const MainNavigationScreen();
+            },
+          );
         }
 
-        final user = snapshot.data!;
-        return FutureBuilder<String?>(
-          future: tutorAuthRepository.getTutorIdFromAuthUid(user.uid),
-          builder: (context, tutorSnapshot) {
-            if (tutorSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(child: CircularProgressIndicator()),
-              );
-            }
-
-            if (tutorSnapshot.data != null) {
-              return TutorDashboardScreen(tutorId: tutorSnapshot.data!);
-            }
-
-            return const MainNavigationScreen();
+        return AnimatedSwitcher(
+          duration: const Duration(milliseconds: 300),
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
           },
+          child: KeyedSubtree(
+            key: ValueKey(
+              '${child.runtimeType}-${snapshot.data?.uid ?? 'guest'}',
+            ),
+            child: child,
+          ),
         );
       },
     );
@@ -90,33 +109,37 @@ class SignInPage extends StatelessWidget {
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const LoginScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.person),
-                      label: const Text('Student'),
+                    child: PressableScale(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const LoginScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.person),
+                        label: const Text('Student'),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const TutorLoginScreen(),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.school),
-                      label: const Text('Tutor'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
+                    child: PressableScale(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const TutorLoginScreen(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.school),
+                        label: const Text('Tutor'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                        ),
                       ),
                     ),
                   ),
