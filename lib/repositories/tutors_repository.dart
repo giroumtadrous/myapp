@@ -9,7 +9,7 @@ import '../models/tutor_model.dart';
 /// - name: String
 /// - email: String
 /// - bio: String
-/// - subjects: List<String> (e.g. ["Mathematics", "Calculus"])
+/// - subjects: `List<String>` (e.g. ["Mathematics", "Calculus"])
 /// - hourlyRate: num
 /// - rating: num
 class TutorsRepository {
@@ -20,6 +20,8 @@ class TutorsRepository {
 
   static const String _collection = 'tutors';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  static const int _arrayContainsAnyLimit = 30;
 
   /// Returns a real-time stream of tutors. Updates when tutors are added,
   /// edited, or deleted in Firestore.
@@ -73,6 +75,71 @@ class TutorsRepository {
       tutors.sort((a, b) => b.rating.compareTo(a.rating));
       return tutors;
     });
+  }
+
+  /// Returns tutors that teach the provided [subjectIds].
+  ///
+  /// Uses Firestore `arrayContainsAny` for dynamic category-based filtering.
+  /// If [subjectIds] exceeds Firestore's argument limit, the method falls back
+  /// to a broad stream and applies the full filter client-side.
+  Stream<List<Tutor>> getTutorsByAnySubjects(List<String> subjectIds) {
+    final normalizedIds = subjectIds
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toSet()
+        .toList();
+
+    if (normalizedIds.isEmpty) {
+      return Stream.value(const <Tutor>[]);
+    }
+
+    if (normalizedIds.length > _arrayContainsAnyLimit) {
+      return _firestore.collection(_collection).snapshots().map((snapshot) {
+        final tutors = snapshot.docs
+            .map((doc) => Tutor.fromMap(doc.id, doc.data()))
+            .where(
+              (tutor) => tutor.subjects.any(
+                (subject) => normalizedIds.contains(subject),
+              ),
+            )
+            .toList();
+
+        tutors.sort((a, b) => b.rating.compareTo(a.rating));
+        return tutors;
+      });
+    }
+
+    return _firestore
+        .collection(_collection)
+        .where('subjects', arrayContainsAny: normalizedIds)
+        .snapshots()
+        .map((snapshot) {
+          final tutors = snapshot.docs
+              .map((doc) => Tutor.fromMap(doc.id, doc.data()))
+              .toList();
+          tutors.sort((a, b) => b.rating.compareTo(a.rating));
+          return tutors;
+        });
+  }
+
+  /// Returns tutors that teach exactly [subjectId].
+  Stream<List<Tutor>> getTutorsBySubject(String subjectId) {
+    final value = subjectId.trim();
+    if (value.isEmpty) {
+      return Stream.value(const <Tutor>[]);
+    }
+
+    return _firestore
+        .collection(_collection)
+        .where('subjects', arrayContains: value)
+        .snapshots()
+        .map((snapshot) {
+          final tutors = snapshot.docs
+              .map((doc) => Tutor.fromMap(doc.id, doc.data()))
+              .toList();
+          tutors.sort((a, b) => b.rating.compareTo(a.rating));
+          return tutors;
+        });
   }
 
   /// Returns a stream where the keys are the "main" categories and the values

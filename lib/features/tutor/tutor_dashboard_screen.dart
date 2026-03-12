@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../tutor/upcoming_sessions_tab.dart';
-import '../tutor/past_sessions_tab.dart';
-import '../tutor/other_tutors_tab.dart';
-import '../tutor/tutor_availability_screen.dart';
-import '../tutor/tutor_own_profile_screen.dart';
 import '../../repositories/tutor_auth_repository.dart';
 import '../../utils/app_transitions.dart';
+import '../tutor/other_tutors_tab.dart';
+import '../tutor/past_sessions_tab.dart';
+import '../tutor/tutor_availability_screen.dart';
+import '../tutor/tutor_own_profile_screen.dart';
+import '../tutor/upcoming_sessions_tab.dart';
 
 class TutorDashboardScreen extends StatefulWidget {
   final String tutorId;
@@ -42,15 +42,34 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
 
     if (confirmed == true) {
       await _tutorAuthRepository.signOut();
-      // Navigation handled by _AuthGate in main.dart
+      // Navigation is handled by AuthWrapper.
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F8),
       appBar: AppBar(
-        title: const Text('Tutor Dashboard'),
+        titleSpacing: 16,
+        title: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4051B5).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.school,
+                color: Color(0xFF4051B5),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Text('Tutor Portal'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
@@ -83,26 +102,76 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
           ),
         ],
       ),
-      body: IndexedStack(
-        index: _selectedTabIndex,
+      body: Column(
         children: [
-          UpcomingSessionsTab(tutorId: widget.tutorId),
-          PastSessionsTab(tutorId: widget.tutorId),
-          OtherTutorsTab(currentTutorId: widget.tutorId),
+          const SizedBox(height: 8),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.auto_graph, color: Color(0xFF4051B5)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selectedTabIndex == 0
+                        ? 'Upcoming sessions overview'
+                        : _selectedTabIndex == 1
+                            ? 'Past sessions history'
+                            : 'Tutor network and collaboration',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: IndexedStack(
+              index: _selectedTabIndex,
+              children: [
+                UpcomingSessionsTab(tutorId: widget.tutorId),
+                PastSessionsTab(tutorId: widget.tutorId),
+                OtherTutorsTab(currentTutorId: widget.tutorId),
+              ],
+            ),
+          ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedTabIndex,
-        onTap: (index) {
+      bottomNavigationBar: NavigationBar(
+        height: 70,
+        backgroundColor: Colors.white,
+        indicatorColor: const Color(0xFF4051B5).withOpacity(0.14),
+        selectedIndex: _selectedTabIndex,
+        onDestinationSelected: (index) {
           setState(() => _selectedTabIndex = index);
         },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.schedule),
-            label: 'Upcoming',
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view),
+            label: 'Home',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: 'Past'),
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Tutors'),
+          NavigationDestination(
+            icon: Icon(Icons.calendar_today_outlined),
+            selectedIcon: Icon(Icons.calendar_today),
+            label: 'Schedule',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.group_outlined),
+            selectedIcon: Icon(Icons.group),
+            label: 'Tutors',
+          ),
         ],
       ),
     );

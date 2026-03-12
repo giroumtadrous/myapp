@@ -26,6 +26,17 @@ class BookingsScreen extends StatefulWidget {
 class _BookingsScreenState extends State<BookingsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   final PaymentRepository _paymentRepository = PaymentRepository();
+  String _selectedFilter = 'All';
+
+  final List<String> _filters = const ['All', 'Pending', 'Approved', 'Completed'];
+
+  String _sessionFilterLabel(SessionModel session) {
+    final raw = session.status.toLowerCase();
+    if (raw == 'pending' || raw.contains('pending')) return 'Pending';
+    if (raw == 'approved' || raw == 'confirmed') return 'Approved';
+    if (raw == 'completed') return 'Completed';
+    return 'All';
+  }
 
   Future<void> _startMeeting(SessionModel session, User user) async {
     try {
@@ -59,20 +70,66 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My bookings')),
+      backgroundColor: const Color(0xFFF6F6F8),
+      appBar: AppBar(
+        title: const Text('My Sessions'),
+        actions: [
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.calendar_month),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Upcoming sessions',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
+              // Top filter tabs mapped from design/sessions.html
+              SizedBox(
+                height: 52,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _filters.length,
+                  itemBuilder: (context, index) {
+                    final filter = _filters[index];
+                    final selected = _selectedFilter == filter;
+                    return InkWell(
+                      onTap: () => setState(() => _selectedFilter = filter),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18),
+                        alignment: Alignment.center,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              filter,
+                              style: TextStyle(
+                                color: selected
+                                    ? const Color(0xFF4051B5)
+                                    : const Color(0xFF64748B),
+                                fontWeight: selected
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              height: 2,
+                              width: 42,
+                              color: selected
+                                  ? const Color(0xFF4051B5)
+                                  : Colors.transparent,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                 stream: _paymentRepository.userNotifications(user.uid),
                 builder: (context, snapshot) {
@@ -86,35 +143,59 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
                   if (unread.isEmpty) return const SizedBox.shrink();
 
-                  return Card(
-                    color: Colors.amber[50],
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFDE68A)),
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: unread.take(2).map((doc) {
-                          final data = doc.data();
-                          final title = (data['title'] ?? 'Payment update')
-                              .toString();
-                          final message = (data['message'] ?? '').toString();
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: Text(title),
-                            subtitle: Text(message),
-                            trailing: TextButton(
-                              onPressed: () {
-                                _paymentRepository.markNotificationRead(doc.id);
-                              },
-                              child: const Text('Mark read'),
-                            ),
-                          );
-                        }).toList(),
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.notifications_active_outlined,
+                                size: 16,
+                                color: Color(0xFFB45309),
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Payment Updates',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFB45309),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ...unread.take(2).map((doc) {
+                            final data = doc.data();
+                            final title = (data['title'] ?? 'Payment update')
+                                .toString();
+                            final message = (data['message'] ?? '').toString();
+                            return ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(title),
+                              subtitle: Text(message),
+                              trailing: TextButton(
+                                onPressed: () {
+                                  _paymentRepository.markNotificationRead(doc.id);
+                                },
+                                child: const Text('Mark read'),
+                              ),
+                            );
+                          }),
+                        ],
                       ),
                     ),
                   );
                 },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Expanded(
                 child: StreamBuilder<List<SessionModel>>(
                   stream: _sessionRepository.upcomingSessions(user.uid),
@@ -126,6 +207,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     }
 
                     final sessions = snapshot.data ?? [];
+                    final filteredSessions = _selectedFilter == 'All'
+                        ? sessions
+                        : sessions
+                              .where(
+                                (session) =>
+                                    _sessionFilterLabel(session) == _selectedFilter,
+                              )
+                              .toList();
                     if (sessions.isEmpty) {
                       return Center(
                         child: Text(
@@ -137,12 +226,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       );
                     }
 
+                    if (filteredSessions.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No $_selectedFilter sessions found.',
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      );
+                    }
+
                     return ListView.separated(
-                      itemCount: sessions.length,
+                      padding: const EdgeInsets.only(top: 2, bottom: 12),
+                      itemCount: filteredSessions.length,
                       separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 10),
                       itemBuilder: (context, index) {
-                        final session = sessions[index];
+                        final session = filteredSessions[index];
                         final isSessionConfirmed =
                             session.status == 'confirmed';
 

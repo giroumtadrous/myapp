@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4051b5",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#14161e",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Tutor Dashboard - Flutter Expert</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100">
+<div class="relative flex min-h-screen flex-col overflow-x-hidden">
+<header class="flex items-center bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-10 justify-between">
+<div class="flex items-center gap-3">
+<div class="bg-primary/10 p-2 rounded-lg">
+<span class="material-symbols-outlined text-primary">school</span>
+</div>
+<h2 class="text-lg font-bold tracking-tight">Tutor Portal</h2>
+</div>
+<div class="flex items-center gap-2">
+<button class="flex items-center justify-center rounded-full h-10 w-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-10 w-10 rounded-full bg-cover bg-center border-2 border-primary" data-alt="Professional headshot of a male tutor" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA8AfSIiP9qTYRdpBLEjB4ZB4wZRv-mimlIJnavzIB68EdmwruieP-0siqFuMyakAhpmjb9ema09RlljX3SeP9HLbcyhPXZCJI9XJPc0TBWhpSU-aw1OuaV7L3tCgUaw0B5CEmWvni4Yerw2K_sNM4SoTPujusQoQ-PCq0cE2D_lWH0dZUReKRud9YP0B9gbx3jm8vli30WdTBcF90lobi7CRIAnrN56x1rV3x8wp_N7mMVSTMt21Fp4wdx5wIF2tXHmlEQZsxbb6_O')"></div>
+</div>
+</header>
+<main class="flex-1 pb-24">
+<section class="p-4 @container">
+<div class="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex w-full flex-col gap-4 @[520px]:flex-row @[520px]:justify-between @[520px]:items-center">
+<div class="flex gap-4 items-center">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-20 w-20 border-2 border-primary/20" data-alt="Profile picture of Alex Rivers" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAN2l7kuEifwlJHTwkOWbjTw6pG_bv_OBlWfwIMOieQV8Xs4K6oAT96biomjjfZOI1R58GyQl-oSvN5JuORyMK9LtUEmi7P4i9p22AYKHArCGu7f-YIW6D8mhWBeAFlTLBByzuUP1_YzhP-GJrnhibpHBxdP-hti4AaAmXp97U9rhcpfKYPMeUPzi3Peh0-XpqM-hD76azRVGvXVlP0Es2RiQj4yUTWo_n9EMaw1HuPQXtpQbH5Z9bDzc92aos26mz76E1iqMzOiJ2S");'></div>
+<div class="flex flex-col">
+<p class="text-2xl font-bold tracking-tight">Alex Rivers</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm flex items-center gap-1">
+<span class="bg-primary/10 text-primary px-2 py-0.5 rounded text-xs font-semibold uppercase">Flutter Expert</span>
+<span class="material-symbols-outlined text-amber-400 text-sm fill-1">star</span>
+<span class="font-medium">4.9</span>
+</p>
+</div>
+</div>
+<button class="flex items-center justify-center rounded-lg h-10 px-6 bg-primary text-white text-sm font-bold transition-all hover:bg-primary/90">
+<span>Edit Profile</span>
+</button>
+</div>
+<div class="flex flex-wrap gap-4 mt-8">
+<div class="flex flex-1 min-w-[120px] flex-col gap-1 rounded-lg p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">Total Hours</p>
+<p class="text-2xl font-bold">124</p>
+</div>
+<div class="flex flex-1 min-w-[120px] flex-col gap-1 rounded-lg p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">Students</p>
+<p class="text-2xl font-bold">18</p>
+</div>
+<div class="flex flex-1 min-w-[120px] flex-col gap-1 rounded-lg p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wider">Earnings</p>
+<p class="text-2xl font-bold text-green-600 dark:text-green-400">$3,420</p>
+</div>
+</div>
+</div>
+</section>
+<section class="px-4 py-2">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xl font-bold">Upcoming Sessions</h3>
+<button class="text-primary text-sm font-semibold">View All</button>
+</div>
+<div class="space-y-3">
+<div class="flex items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="flex flex-col items-center justify-center h-12 w-12 rounded-lg bg-primary/10 text-primary">
+<span class="text-xs font-bold uppercase">Oct</span>
+<span class="text-lg font-bold leading-tight">14</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-sm">State Management Deep Dive</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">with Sarah Jenkins • 10:00 AM - 11:30 AM</p>
+</div>
+<button class="h-10 w-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">video_call</span>
+</button>
+</div>
+<div class="flex items-center gap-4 p-4 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="flex flex-col items-center justify-center h-12 w-12 rounded-lg bg-primary/10 text-primary">
+<span class="text-xs font-bold uppercase">Oct</span>
+<span class="text-lg font-bold leading-tight">15</span>
+</div>
+<div class="flex-1">
+<h4 class="font-bold text-sm">Introduction to Widgets</h4>
+<p class="text-xs text-slate-500 dark:text-slate-400">with Michael Chen • 02:00 PM - 03:00 PM</p>
+</div>
+<button class="h-10 w-10 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-400">video_call</span>
+</button>
+</div>
+</div>
+</section>
+<section class="px-4 py-6">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-xl font-bold">Student Requests</h3>
+<span class="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">3 New</span>
+</div>
+<div class="flex overflow-x-auto gap-4 pb-4 no-scrollbar">
+<div class="min-w-[280px] bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3 mb-3">
+<div class="h-10 w-10 rounded-full bg-cover" data-alt="Student profile photo" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDuRaQ65CTYdwqc-VxKkfGLr8HeMiMqgehQggP6e9EJCgct92jlAKG7rSmpf7ntg0N_x8b88cDCp1FFcarBoIQKOOWVDo1oP36eFz8fMkCE9FIR3jvysQ-Itzib_ZJtmfgCKeM8IMlV1_L-9PR11KizLiVKLDqEpcCJ9B0COVJdYfgy1o2IZYQuPduO36sxuoIkFYuWNFgxw-8bL5FT0Ljdvgwhm13t81SbDwvSPBR-ht9VGo6rY8FX7irhJ-QIq1xS5StJ4Per8vtT')"></div>
+<div>
+<h4 class="font-bold text-sm">Emma Watson</h4>
+<p class="text-xs text-slate-500">Wants: Firebase Integration</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg">Accept</button>
+<button class="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg">Decline</button>
+</div>
+</div>
+<div class="min-w-[280px] bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+<div class="flex items-center gap-3 mb-3">
+<div class="h-10 w-10 rounded-full bg-cover" data-alt="Student profile photo" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBskx2xr4iopw6T2fekwgrgPYtmPRO89QuHfQRookENhoVyYbcJsYi1kkt2k7yhL528p4abkkcfi2_-89T2hmXCciyAHjNGBzW6Boebpl80x-KK7zC9NFZN8YzduekU1t4fXU7qWi8GnYyhYESBgXy9SON6_Drd9JrcRyRqrHczuk0GG8DHYYdAg2iIGhKEtG8U8BhDv4bOc47hpYzF_qYd4Udcx-d7BOhl9k3OGno0urNJ0Qt__evUukemcdSIH7nLZazB4xcCgqsx')"></div>
+<div>
+<h4 class="font-bold text-sm">David Miller</h4>
+<p class="text-xs text-slate-500">Wants: Flutter Web Intro</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-2 bg-primary text-white text-xs font-bold rounded-lg">Accept</button>
+<button class="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg">Decline</button>
+</div>
+</div>
+</div>
+</section>
+<section class="px-4 py-2">
+<div class="bg-white dark:bg-slate-900 rounded-xl p-5 border border-slate-200 dark:border-slate-800">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-xl font-bold">Manage Availability</h3>
+<button class="flex items-center gap-1 text-primary text-sm font-semibold">
+<span class="material-symbols-outlined text-sm">settings</span>
+                            Manage
+                        </button>
+</div>
+<div class="grid grid-cols-7 gap-2 mb-4">
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">S</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">M</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">T</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">W</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">T</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">F</div>
+<div class="text-center text-[10px] font-bold text-slate-400 uppercase">S</div>
+<div class="flex items-center justify-center h-8 text-xs text-slate-300">12</div>
+<div class="flex items-center justify-center h-8 text-xs text-slate-300">13</div>
+<div class="flex items-center justify-center h-8 text-xs bg-primary text-white rounded-full font-bold ring-4 ring-primary/20">14</div>
+<div class="flex items-center justify-center h-8 text-xs font-semibold">15</div>
+<div class="flex items-center justify-center h-8 text-xs font-semibold">16</div>
+<div class="flex items-center justify-center h-8 text-xs font-semibold">17</div>
+<div class="flex items-center justify-center h-8 text-xs font-semibold">18</div>
+</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+<span class="text-sm font-medium">Monday Slots</span>
+<span class="text-xs text-primary font-bold">4 Open</span>
+</div>
+<div class="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+<span class="text-sm font-medium">Tuesday Slots</span>
+<span class="text-xs text-primary font-bold">2 Open</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<nav class="fixed bottom-0 left-0 right-0 border-t border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md px-4 pb-6 pt-3 flex items-center justify-around z-20">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-1">grid_view</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Schedule</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Students</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold uppercase tracking-tighter">Profile</span>
+</a>
+</nav>
+</div>
+</body></html>

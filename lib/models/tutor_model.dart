@@ -1,10 +1,9 @@
-import 'subject_categories.dart';
-
 class Tutor {
   final String id;
   final String name;
   final String email;
   final String bio;
+  final String? profileImageUrl;
   final List<String> subjects;
   final List<String> main;
   final Map<String, List<String>>? subjectsByMain;
@@ -17,6 +16,7 @@ class Tutor {
     required this.name,
     required this.email,
     required this.bio,
+    this.profileImageUrl,
     required this.hourlyRate,
     required this.rating,
     required this.subjects,
@@ -31,12 +31,16 @@ class Tutor {
       name: _toString(data['name']),
       email: _toString(data['email']),
       bio: _toString(data['bio']),
+      profileImageUrl: _toOptionalString(
+        data['profileImageUrl'] ??
+        data['photoUrl'] ??
+        data['photoURL'] ??
+        data['avatarUrl'],
+      ),
       hourlyRate: _toDouble(data['hourlyRate'] ?? data['hourly_rate']),
       rating: _toDouble(data['rating']),
       subjects: _toSubjects(data['subjects']),
-      // if the document didn't explicitly supply mains, try to infer them
-      // from the subjects list using our predefined mappings.
-      main: _inferMain(_toSubjects(data['main']), _toSubjects(data['subjects'])),
+      main: _toSubjects(data['main']),
       subjectsByMain: _toSubjectsByMain(data['subjects_by_main']),
       weeklyAvailability: _toWeeklyAvailability(
         data['weeklyAvailability'] ?? data['weekly_availability'],
@@ -46,6 +50,12 @@ class Tutor {
 
   static String _toString(dynamic v) =>
       v != null ? v.toString().trim() : '';
+
+  static String? _toOptionalString(dynamic v) {
+    if (v == null) return null;
+    final value = v.toString().trim();
+    return value.isEmpty ? null : value;
+  }
 
   static List<String> _toSubjects(dynamic v) {
     if (v == null) return [];
@@ -67,6 +77,7 @@ class Tutor {
       'name': name,
       'email': email,
       'bio': bio,
+      'profileImageUrl': profileImageUrl,
       'hourlyRate': hourlyRate,
       'rating': rating,
       'subjects': subjects,
@@ -74,17 +85,6 @@ class Tutor {
       'subjects_by_main': subjectsByMain,
       'weeklyAvailability': weeklyAvailability,
     };
-  }
-
-  /// helper used by the factory to ensure `main` is non-null and not empty
-  /// by falling back to an inferred value if necessary.
-  static List<String> _inferMain(List<String> original, List<String> subjects) {
-    if (original.isNotEmpty) return original;
-    return _infer(subjects);
-  }
-
-  static List<String> _infer(List<String> subjects) {
-    return SubjectCategories.inferMainsFromSubjects(subjects);
   }
 
   static Map<String, List<String>>? _toSubjectsByMain(dynamic v) {

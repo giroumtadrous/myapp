@@ -40,8 +40,11 @@ class _SessionCardState extends State<SessionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
+    final hasJoinAction = widget.onJoinMeet != null;
+    final hasCancelAction = widget.onCancel != null;
+    final personLabel = widget.tutorName.contains(':')
+        ? widget.tutorName
+        : 'Tutor: ${widget.tutorName}';
     final lift = _pressed ? -1.0 : (_hovered ? -4.0 : 0.0);
     final elevation = _pressed ? 1.0 : (_hovered ? 5.0 : 2.0);
 
@@ -60,10 +63,11 @@ class _SessionCardState extends State<SessionCard> {
         },
         child: Card(
           elevation: elevation,
+          margin: const EdgeInsets.only(bottom: 14),
+          clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          color: Colors.white,
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: widget.onTap,
@@ -76,41 +80,11 @@ class _SessionCardState extends State<SessionCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: theme.colorScheme.primary.withOpacity(
-                          0.1,
-                        ),
-                        child: Icon(
-                          Icons.person,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              widget.tutorName,
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              widget.subject,
-                              style: textTheme.bodySmall?.copyWith(
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
+                          horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
@@ -119,64 +93,101 @@ class _SessionCardState extends State<SessionCard> {
                         ),
                         child: Text(
                           widget.statusLabel.toUpperCase(),
-                          style: textTheme.labelSmall?.copyWith(
+                          style: TextStyle(
                             color: widget.statusColor,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${widget.date} • ${widget.timeRange}',
+                        style: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.subject,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFE0E7FF),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.person,
+                          color: Color(0xFF4051B5),
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          personLabel,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Color(0xFF475569),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(Icons.calendar_today_outlined, size: 18),
-                      const SizedBox(width: 6),
-                      Text(widget.date, style: textTheme.bodyMedium),
-                      const SizedBox(width: 16),
-                      const Icon(Icons.schedule_outlined, size: 18),
-                      const SizedBox(width: 6),
-                      Text(widget.timeRange, style: textTheme.bodyMedium),
-                    ],
-                  ),
                   const SizedBox(height: 16),
-                  if (!widget.isPast)
+                  if (!widget.isPast && (hasJoinAction || hasCancelAction))
                     Row(
                       children: [
-                        Expanded(
-                          child: PressableScale(
-                            child: ElevatedButton(
-                              onPressed:
-                                  widget.onJoinMeet ??
-                                  (widget.isActive ? () {} : null),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
+                        if (hasJoinAction)
+                          Expanded(
+                            child: PressableScale(
+                              child: ElevatedButton(
+                                onPressed: widget.onJoinMeet,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF4051B5),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
+                                child: const Text('Join Session'),
                               ),
-                              child: const Text('Join Session'),
                             ),
                           ),
-                        ),
-                        if (widget.onCancel != null) ...[
+                        if (hasJoinAction && hasCancelAction)
                           const SizedBox(width: 10),
+                        if (hasCancelAction)
                           Expanded(
                             child: PressableScale(
                               child: OutlinedButton(
                                 onPressed: widget.onCancel,
                                 style: OutlinedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 14,
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  foregroundColor: const Color(0xFF475569),
+                                  side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
                                   ),
-                                  foregroundColor: Colors.red[700],
-                                  side: BorderSide(color: Colors.red[300]!),
                                 ),
                                 child: const Text('Cancel'),
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
                 ],

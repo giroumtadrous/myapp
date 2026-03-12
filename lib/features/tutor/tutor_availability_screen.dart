@@ -33,13 +33,10 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
         _errorMessage = null;
       });
 
-      // Fetch current availability from weeklyAvailability field
       var availability = await _tutorsRepository.getTutorAvailability(
         widget.tutorId,
       );
 
-      // Initialize all days with empty list if not present
-      // This ensures all days are represented in the map
       for (final day in daysOfWeek) {
         if (!availability.containsKey(day)) {
           availability[day] = [];
@@ -65,7 +62,7 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
         hours.remove(hour);
       } else {
         hours.add(hour);
-        hours.sort(); // Keep hours sorted
+        hours.sort();
       }
       _availability[day] = hours;
     });
@@ -78,17 +75,12 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
         _errorMessage = null;
       });
 
-      // Update weeklyAvailability field in Firestore
-      await _tutorsRepository.updateTutorAvailability(
-        widget.tutorId,
-        _availability,
-      );
+      await _tutorsRepository.updateTutorAvailability(widget.tutorId, _availability);
 
       setState(() {
         _isSaving = false;
       });
 
-      // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -96,7 +88,6 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        // Optionally pop after a short delay
         Future.delayed(const Duration(milliseconds: 500), () {
           if (mounted) {
             Navigator.pop(context);
@@ -114,43 +105,76 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit Availability')),
+      backgroundColor: const Color(0xFFF6F6F8),
+      appBar: AppBar(title: const Text('Manage Availability')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
-          ? _buildErrorWidget()
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'Select available hours for each day',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  ...daysOfWeek.map((day) => _buildDaySection(day)),
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _saveAvailability,
-                        child: _isSaving
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+              ? _buildErrorWidget()
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.schedule, color: Color(0xFF4051B5)),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Choose available hours for each day. These slots are shown to students when booking.',
+                                    style: TextStyle(
+                                      color: Color(0xFF475569),
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ),
-                              )
-                            : const Text('Save Availability'),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          ...daysOfWeek.map((day) => _buildDaySection(day)),
+                          const SizedBox(height: 80),
+                        ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _isSaving ? null : _saveAvailability,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF4051B5),
+                            minimumSize: const Size.fromHeight(52),
+                          ),
+                          icon: _isSaving
+                              ? const SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.save_outlined),
+                          label: Text(
+                            _isSaving ? 'Saving...' : 'Save Availability',
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 
@@ -167,10 +191,7 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
             style: const TextStyle(color: Colors.red),
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _initializeAvailability,
-            child: const Text('Retry'),
-          ),
+          ElevatedButton(onPressed: _initializeAvailability, child: const Text('Retry')),
         ],
       ),
     );
@@ -180,18 +201,42 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
     final hours = _availability[day] ?? [];
     final dayDisplayName = dayDisplayNames[day] ?? day;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            dayDisplayName,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Text(
+                dayDisplayName,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF2FF),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '${hours.length} Open',
+                  style: const TextStyle(
+                    color: Color(0xFF4051B5),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -200,30 +245,29 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
               return _buildHourChip(day, hour, isSelected);
             }).toList(),
           ),
-          const SizedBox(height: 8),
-          if (hours.isNotEmpty)
-            Text(
-              'Selected: ${hours.join(', ')}',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-            ),
-          Divider(color: Colors.grey[300]),
         ],
       ),
     );
   }
 
   Widget _buildHourChip(String day, String hour, bool isSelected) {
-    return FilterChip(
-      label: Text(hour),
-      selected: isSelected,
-      onSelected: (_) => _toggleHour(day, hour),
-      backgroundColor: Colors.grey[200],
-      selectedColor: Theme.of(context).primaryColor,
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.white : Colors.black,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return InkWell(
+      onTap: () => _toggleHour(day, hour),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF4051B5) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          hour,
+          style: TextStyle(
+            color: isSelected ? Colors.white : const Color(0xFF475569),
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }

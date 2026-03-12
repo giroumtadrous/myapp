@@ -16,16 +16,14 @@ class SearchBarWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
     return Row(
       children: [
         Expanded(
           child: Container(
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.03),
@@ -51,21 +49,23 @@ class SearchBarWidget extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        Material(
-          color: colorScheme.primary,
-          elevation: 4,
-          shadowColor: Colors.black.withOpacity(0.12),
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onFilterTap,
-            child: const Padding(
-              padding: EdgeInsets.all(10),
-              child: Icon(Icons.tune_rounded, color: Colors.white, size: 22),
+        if (onFilterTap != null) ...[
+          const SizedBox(width: 12),
+          Material(
+            color: const Color(0xFF4051B5),
+            elevation: 4,
+            shadowColor: Colors.black.withOpacity(0.12),
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onFilterTap,
+              child: const Padding(
+                padding: EdgeInsets.all(10),
+                child: Icon(Icons.tune_rounded, color: Colors.white, size: 22),
+              ),
             ),
           ),
-        ),
+        ],
       ],
     );
   }

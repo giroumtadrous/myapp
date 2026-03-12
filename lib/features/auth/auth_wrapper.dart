@@ -75,75 +75,110 @@ class SignInPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final width = MediaQuery.of(context).size.width;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F8),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Jerome',
-                    style: textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '1-on-1 peer tutoring, on demand.',
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 48),
-                  Text(
-                    'I am a:',
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: PressableScale(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            AppTransitions.slideFromRight(
-                              page: const LoginScreen(),
+              constraints: BoxConstraints(maxWidth: width > 600 ? 460 : 420),
+              child: Card(
+                elevation: 10,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Color(0xFF4051B5),
+                            child: Icon(
+                              Icons.school,
+                              color: Colors.white,
+                              size: 16,
                             ),
-                          );
-                        },
-                        icon: const Icon(Icons.person),
-                        label: const Text('Student'),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Flutter Academy',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: PressableScale(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            AppTransitions.slideFromRight(
-                              page: const TutorLoginScreen(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.school),
-                        label: const Text('Tutor'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                      const SizedBox(height: 20),
+                      Text(
+                        'Welcome back',
+                        textAlign: TextAlign.center,
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Choose your account type to continue',
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      SizedBox(
+                        width: double.infinity,
+                        child: PressableScale(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                AppTransitions.slideFromRight(
+                                  page: const LoginScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4051B5),
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                            icon: const Icon(Icons.person),
+                            label: const Text('Student'),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: PressableScale(
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                AppTransitions.slideFromRight(
+                                  page: const TutorLoginScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                            icon: const Icon(Icons.school),
+                            label: const Text('Tutor'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),

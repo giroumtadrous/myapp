@@ -7,6 +7,7 @@ import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../utils/meeting_utils.dart';
+import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/pressable_scale.dart';
 
@@ -125,6 +126,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F8),
       appBar: AppBar(title: const Text('Session Details')),
       body: StreamBuilder<SessionDetailsData?>(
         stream: _sessionRepository.streamSessionDetails(widget.sessionId),
@@ -153,140 +155,258 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           final session = details.session;
           final canJoin = _sessionRepository.canJoinSession(session);
           final canCancel = _canCancel(session);
+          final statusColor = sessionStatusColor(session.status);
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
+          return Column(
             children: [
-              _ExpandableSectionCard(
-                title: session.subject,
-                initiallyExpanded: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   children: [
-                    _LabeledValue(
-                      label: 'Status',
-                      value: _titleCase(session.status),
+                    // Layout inspired by design/bookedsession.png(.html), data remains dynamic.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            session.subject,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _titleCase(session.status).toUpperCase(),
+                            style: TextStyle(
+                              color: statusColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    _LabeledValue(
-                      label: 'Date',
-                      value: DateFormat.yMMMMd().format(session.dateTime),
+                    const SizedBox(height: 12),
+                    _SectionCard(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  session.subject,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Tutor session',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: const Color(0xFF64748B)),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.schedule,
+                                      size: 16,
+                                      color: Color(0xFF4051B5),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '${DateFormat.yMMMd().format(session.dateTime)}, ${DateFormat.jm().format(session.dateTime)} (${session.durationMinutes} min)',
+                                      style: const TextStyle(
+                                        color: Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            width: 74,
+                            height: 74,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF2FF),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(
+                              Icons.flutter_dash,
+                              color: Color(0xFF4051B5),
+                              size: 34,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    _LabeledValue(
-                      label: 'Time',
-                      value: DateFormat.jm().format(session.dateTime),
-                    ),
-                    _LabeledValue(
-                      label: 'Duration',
-                      value: '${session.durationMinutes} min',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _SectionCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Tutor Information',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    const SizedBox(height: 14),
+                    const Text(
+                      'PARTICIPANTS',
+                      style: TextStyle(
+                        fontSize: 12,
                         fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.8,
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    _PersonTile(
-                      name: details.tutor.name,
-                      photoUrl: details.tutor.photoUrl,
-                      fallbackIcon: Icons.school_outlined,
+                    const SizedBox(height: 8),
+                    _SectionCard(
+                      child: _PersonTile(
+                        name: details.tutor.name,
+                        photoUrl: details.tutor.photoUrl,
+                        fallbackIcon: Icons.school_outlined,
+                      ),
                     ),
+                    const SizedBox(height: 8),
+                    _SectionCard(
+                      child: _PersonTile(
+                        name: details.student.name,
+                        photoUrl: null,
+                        fallbackIcon: Icons.person_outline,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _MetaBox('Duration', '${session.durationMinutes} min'),
+                        ),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: _MetaBox('Platform', 'In-App Video'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'NOTES',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _SectionCard(
+                      child: Text(
+                        session.notes.trim().isEmpty
+                            ? 'No notes added for this session.'
+                            : session.notes,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'RESOURCES',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF64748B),
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    if (session.documents.isEmpty)
+                      const _SectionCard(child: Text('No documents uploaded.'))
+                    else
+                      ...session.documents.map(
+                        (doc) => _SectionCard(
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.description_outlined),
+                            title: Text(doc.name),
+                            subtitle: Text(doc.type ?? 'Document'),
+                            trailing: const Icon(Icons.download_outlined),
+                            onTap: () => _openDocument(doc),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-              const SizedBox(height: 12),
-              _SectionCard(
-                child: _LabeledValue(
-                  label: 'Student Name',
-                  value: details.student.name,
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF8FAFC),
+                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
                 ),
-              ),
-              const SizedBox(height: 12),
-              _ExpandableSectionCard(
-                title: 'Notes',
-                child: Text(
-                  session.notes.trim().isEmpty
-                      ? 'No notes added for this session.'
-                      : session.notes,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _ExpandableSectionCard(
-                title: 'Documents',
-                child: session.documents.isEmpty
-                    ? const Text('No documents uploaded.')
-                    : Column(
-                        children: session.documents
-                            .map(
-                              (doc) => ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                leading: const Icon(Icons.description_outlined),
-                                title: Text(doc.name),
-                                subtitle: Text(doc.type ?? 'Document'),
-                                trailing: const Icon(Icons.open_in_new),
-                                onTap: () => _openDocument(doc),
-                              ),
-                            )
-                            .toList(),
+                child: Column(
+                  children: [
+                    if (canJoin)
+                      SizedBox(
+                        width: double.infinity,
+                        child: PressableScale(
+                          child: FilledButton.icon(
+                            onPressed: _isJoining
+                                ? null
+                                : () => _joinSession(session),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF4051B5),
+                              minimumSize: const Size.fromHeight(52),
+                            ),
+                            icon: _isJoining
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.videocam_outlined),
+                            label: Text(_isJoining ? 'Joining...' : 'Join Session'),
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        'Join button appears when the session is approved and close to start time.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: Colors.grey[600]),
                       ),
-              ),
-              const SizedBox(height: 16),
-              if (canJoin)
-                SizedBox(
-                  width: double.infinity,
-                  child: PressableScale(
-                    child: FilledButton.icon(
-                      onPressed: _isJoining
-                          ? null
-                          : () => _joinSession(session),
-                      icon: _isJoining
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.video_call_outlined),
-                      label: Text(_isJoining ? 'Joining...' : 'Join Session'),
-                    ),
-                  ),
-                ),
-              if (!canJoin)
-                Text(
-                  'Join button appears when the session is approved and close to start time.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-                ),
-              const SizedBox(height: 8),
-              if (canCancel)
-                SizedBox(
-                  width: double.infinity,
-                  child: PressableScale(
-                    child: OutlinedButton.icon(
-                      onPressed: _isCanceling
-                          ? null
-                          : () => _cancelSession(session),
-                      icon: _isCanceling
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.cancel_outlined),
-                      label: Text(
-                        _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                    const SizedBox(height: 8),
+                    if (canCancel)
+                      SizedBox(
+                        width: double.infinity,
+                        child: PressableScale(
+                          child: TextButton.icon(
+                            onPressed: _isCanceling
+                                ? null
+                                : () => _cancelSession(session),
+                            icon: _isCanceling
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.cancel_outlined),
+                            label: Text(
+                              _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                            ),
+                            style: TextButton.styleFrom(
+                              foregroundColor: const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
+                  ],
                 ),
+              ),
             ],
           );
         },
@@ -308,80 +428,48 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Padding(padding: const EdgeInsets.all(14), child: child),
-    );
-  }
-}
-
-class _ExpandableSectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final bool initiallyExpanded;
-
-  const _ExpandableSectionCard({
-    required this.title,
-    required this.child,
-    this.initiallyExpanded = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          initiallyExpanded: initiallyExpanded,
-          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
-          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          title: Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          children: [
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              alignment: Alignment.topCenter,
-              child: child,
-            ),
-          ],
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
+      padding: const EdgeInsets.all(14),
+      child: child,
     );
   }
 }
 
-class _LabeledValue extends StatelessWidget {
-  final String label;
+class _MetaBox extends StatelessWidget {
+  final String title;
   final String value;
 
-  const _LabeledValue({required this.label, required this.value});
+  const _MetaBox(this.title, this.value);
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 90,
-            child: Text(
-              '$label:',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: Colors.grey[700],
-              ),
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w700,
             ),
           ),
-          Expanded(child: Text(value)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );

@@ -71,7 +71,8 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
+      backgroundColor: const Color(0xFFF6F6F8),
+      appBar: AppBar(title: const Text('Tutor Profile')),
       body: StreamBuilder<Tutor?>(
         stream: _repo.getTutorById(widget.tutorId),
         builder: (context, snapshot) {
@@ -124,104 +125,92 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
 
           return SafeArea(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ── Avatar ───────────────────────────────────────────────
-                  Center(
-                    child: CircleAvatar(
-                      radius: 48,
-                      backgroundColor: colorScheme.primary.withOpacity(0.12),
-                      child: Icon(
-                        Icons.person,
-                        size: 52,
-                        color: colorScheme.primary,
+                  // Mirrors tutor profile card structure from design/tutorprofile.html.
+                  Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Column(
+                        children: [
+                          Stack(
+                            children: [
+                              CircleAvatar(
+                                radius: 60,
+                                backgroundColor: colorScheme.primary.withOpacity(0.12),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 64,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: FloatingActionButton.small(
+                                  onPressed: () {},
+                                  backgroundColor: const Color(0xFF4051B5),
+                                  child: const Icon(Icons.photo_camera, color: Colors.white),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            tutor.name,
+                            style: const TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            tutor.email,
+                            style: const TextStyle(
+                              color: Color(0xFF4051B5),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.4,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-
-                  // ── Name ─────────────────────────────────────────────────
-                  Center(
-                    child: Text(
-                      tutor.name,
-                      style: textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                  if (tutor.email.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Center(
-                      child: Text(
-                        tutor.email,
-                        style: textTheme.bodyMedium
-                            ?.copyWith(color: Colors.grey[600]),
-                      ),
-                    ),
-                  ],
                   const SizedBox(height: 12),
-
-                  // ── Rating & hourly rate ──────────────────────────────────
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.star_rounded,
-                          size: 20, color: Colors.amber[600]),
-                      const SizedBox(width: 4),
-                      Text(
-                        tutor.rating.toStringAsFixed(1),
-                        style: textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                      Expanded(
+                        child: _ProfileStatCard(
+                          title: 'Rating',
+                          value: tutor.rating.toStringAsFixed(1),
+                          icon: Icons.star,
+                        ),
                       ),
-                      const SizedBox(width: 20),
-                      Icon(Icons.attach_money,
-                          size: 18, color: colorScheme.primary),
-                      Text(
-                        '${tutor.hourlyRate.toStringAsFixed(0)}/hr',
-                        style: textTheme.bodyMedium
-                            ?.copyWith(fontWeight: FontWeight.w600),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ProfileStatCard(
+                          title: 'Rate',
+                          value: '\$${tutor.hourlyRate.toStringAsFixed(0)}',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ProfileStatCard(
+                          title: 'Subjects',
+                          value: '${tutor.subjects.length}',
+                        ),
                       ),
                     ],
                   ),
-
-                  const SizedBox(height: 28),
-                  const Divider(),
-                  const SizedBox(height: 20),
-
-                  // ── Subjects ─────────────────────────────────────────────
-                  _SectionLabel(label: 'Subjects Taught'),
-                  const SizedBox(height: 10),
-                  if (tutor.subjects.isEmpty)
-                    Text(
-                      'No subjects listed yet.',
-                      style: textTheme.bodyMedium
-                          ?.copyWith(color: Colors.grey[500]),
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: tutor.subjects
-                          .map(
-                            (s) => Chip(
-                              label: Text(s),
-                              backgroundColor:
-                                  colorScheme.primary.withOpacity(0.08),
-                              labelStyle: TextStyle(
-                                color: colorScheme.primary,
-                                fontSize: 13,
-                              ),
-                              side: BorderSide.none,
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 4, vertical: 0),
-                            ),
-                          )
-                          .toList(),
-                    ),
-
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 16),
 
                   // ── Bio ──────────────────────────────────────────────────
                   Row(
@@ -246,22 +235,26 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                   const SizedBox(height: 8),
 
                   if (_isEditing) ...[
-                    // ── Bio edit field ──────────────────────────────────────
-                    TextField(
-                      controller: _bioController,
-                      maxLines: 5,
-                      maxLength: 500,
-                      enabled: !_isSaving,
-                      decoration: InputDecoration(
-                        hintText: 'Tell students about yourself…',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: TextField(
+                          controller: _bioController,
+                          maxLines: 5,
+                          maxLength: 500,
+                          enabled: !_isSaving,
+                          decoration: InputDecoration(
+                            hintText: 'Tell students about yourself…',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: colorScheme.surfaceContainerHighest
+                                .withOpacity(0.3),
+                            counterStyle:
+                                textTheme.bodySmall?.copyWith(color: Colors.grey),
+                          ),
                         ),
-                        filled: true,
-                        fillColor: colorScheme.surfaceContainerHighest
-                            .withOpacity(0.3),
-                        counterStyle:
-                            textTheme.bodySmall?.copyWith(color: Colors.grey),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -293,17 +286,57 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                       ],
                     ),
                   ] else ...[
-                    // ── Bio display ─────────────────────────────────────────
-                    Text(
-                      tutor.bio.isEmpty
-                          ? 'No bio yet. Tap "Edit" to add one.'
-                          : tutor.bio,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: tutor.bio.isEmpty ? Colors.grey[500] : null,
-                        height: 1.6,
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Text(
+                          tutor.bio.isEmpty
+                              ? 'No bio yet. Tap "Edit" to add one.'
+                              : tutor.bio,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: tutor.bio.isEmpty ? Colors.grey[500] : null,
+                            height: 1.6,
+                          ),
+                        ),
                       ),
                     ),
                   ],
+
+                  const SizedBox(height: 16),
+                  _SectionLabel(label: 'Subjects'),
+                  const SizedBox(height: 8),
+                  if (tutor.subjects.isEmpty)
+                    Text(
+                      'No subjects listed yet.',
+                      style: textTheme.bodyMedium?.copyWith(color: Colors.grey[500]),
+                    )
+                  else
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: tutor.subjects
+                          .map(
+                            (s) => Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEFF2FF),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                s,
+                                style: const TextStyle(
+                                  color: Color(0xFF4051B5),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
 
                   const SizedBox(height: 40),
                 ],
@@ -331,6 +364,53 @@ class _SectionLabel extends StatelessWidget {
           .textTheme
           .titleMedium
           ?.copyWith(fontWeight: FontWeight.w700),
+    );
+  }
+}
+
+class _ProfileStatCard extends StatelessWidget {
+  final String title;
+  final String value;
+  final IconData? icon;
+
+  const _ProfileStatCard({
+    required this.title,
+    required this.value,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFDDE3EE)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                value,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              ),
+              if (icon != null)
+                Icon(icon, size: 16, color: const Color(0xFFF59E0B)),
+            ],
+          ),
+          Text(
+            title.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

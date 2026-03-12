@@ -19,9 +19,7 @@ class CategoryChip extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final backgroundColor = isSelected
-        ? colorScheme.primary.withOpacity(0.12)
-        : Colors.white;
+    final backgroundColor = isSelected ? const Color(0xFF4051B5) : Colors.white;
 
     final borderColor = isSelected
         ? colorScheme.primary
@@ -39,7 +37,7 @@ class CategoryChip extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -52,16 +50,14 @@ class CategoryChip extends StatelessWidget {
             Icon(
               icon,
               size: 18,
-              color:
-                  isSelected ? colorScheme.primary : Colors.grey.shade700,
+              color: isSelected ? Colors.white : Colors.grey.shade700,
             ),
             const SizedBox(width: 6),
             Text(
               label,
               style: theme.textTheme.bodyMedium?.copyWith(
                 fontWeight: FontWeight.w500,
-                color:
-                    isSelected ? colorScheme.primary : Colors.grey.shade800,
+                color: isSelected ? Colors.white : Colors.grey.shade800,
               ),
             ),
           ],

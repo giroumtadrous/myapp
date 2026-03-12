@@ -25,137 +25,209 @@ class _TutorCardState extends State<TutorCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final textTheme = theme.textTheme;
-    final colorScheme = theme.colorScheme;
     final lift = _pressed ? -1.0 : (_hovered ? -4.0 : 0.0);
     final elevation = _pressed ? 1.5 : (_hovered ? 6.0 : 3.0);
+    final shownSubjects = widget.visibleSubjects ?? widget.tutor.subjects;
+    final profileImageUrl = widget.tutor.profileImageUrl;
 
-    return SizedBox(
-      width: 220,
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() {
-          _hovered = false;
-          _pressed = false;
-        }),
-        child: TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0, end: lift),
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOut,
-          builder: (context, value, child) {
-            return Transform.translate(offset: Offset(0, value), child: child);
-          },
-          child: Card(
-            clipBehavior: Clip.antiAlias,
-            elevation: elevation,
-            shadowColor: Colors.black.withOpacity(0.06),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: widget.onTap,
-              onTapDown: (_) => setState(() => _pressed = true),
-              onTapCancel: () => setState(() => _pressed = false),
-              onTapUp: (_) => setState(() => _pressed = false),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: lift),
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        builder: (context, value, child) {
+          return Transform.translate(offset: Offset(0, value), child: child);
+        },
+        child: Card(
+          clipBehavior: Clip.antiAlias,
+          elevation: elevation,
+          margin: const EdgeInsets.only(bottom: 14),
+          shadowColor: Colors.black.withValues(alpha: 0.06),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: widget.onTap,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapCancel: () => setState(() => _pressed = false),
+            onTapUp: (_) => setState(() => _pressed = false),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Hero(
-                          tag: tutorAvatarHeroTag(widget.tutor.id),
+                  // Dashboard tutor row style based on design/dashboard.html.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Hero(
+                        tag: tutorAvatarHeroTag(widget.tutor.id),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: colorScheme.primary.withOpacity(0.07),
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(18),
-                              ),
-                            ),
-                            child: Center(
-                              child: Icon(
-                                Icons.person,
-                                size: 56,
-                                color: colorScheme.primary,
-                              ),
-                            ),
+                            width: 80,
+                            height: 80,
+                            color: const Color(0xFFEFF2FF),
+                            child: profileImageUrl != null
+                                ? Image.network(
+                                    profileImageUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => const Icon(
+                                      Icons.person,
+                                      size: 40,
+                                      color: Color(0xFF4051B5),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.person,
+                                    size: 40,
+                                    color: Color(0xFF4051B5),
+                                  ),
                           ),
                         ),
-                        Positioned(
-                          top: 8,
-                          right: 8,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.65),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
                               children: [
-                                Icon(
-                                  Icons.star_rounded,
-                                  size: 16,
-                                  color: Colors.amber[400],
+                                Expanded(
+                                  child: Text(
+                                    widget.tutor.name,
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  widget.tutor.rating.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFF3CD),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.star,
+                                        size: 14,
+                                        color: Color(0xFFF59E0B),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        widget.tutor.rating.toStringAsFixed(1),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
                             ),
-                          ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.tutor.email,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: shownSubjects
+                                  .take(3)
+                                  .map(
+                                    (subject) => Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEFF2FF),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: Text(
+                                        subject.toUpperCase(),
+                                        style: const TextStyle(
+                                          color: Color(0xFF4051B5),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.tutor.bio,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Color(0xFF475569),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.tutor.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'HOURLY RATE',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                          Text(
+                            '\$${widget.tutor.hourlyRate.toStringAsFixed(0)}.00',
+                            style: const TextStyle(
+                              color: Color(0xFF4051B5),
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      ElevatedButton(
+                        onPressed: widget.onTap,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF4051B5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          (widget.visibleSubjects ?? widget.tutor.subjects)
-                              .join(', '),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '\$${widget.tutor.hourlyRate.toStringAsFixed(0)}/hr',
-                          style: textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                      ],
-                    ),
+                        child: const Text('Book Session'),
+                      ),
+                    ],
                   ),
                 ],
               ),

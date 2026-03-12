@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4051b5",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#14161e",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Session Details</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen">
+<div class="relative flex h-auto min-h-screen w-full max-w-md mx-auto flex-col bg-background-light dark:bg-background-dark overflow-x-hidden border-x border-slate-200 dark:border-slate-800 shadow-sm">
+<!-- TopAppBar Component -->
+<div class="flex items-center bg-background-light dark:bg-background-dark p-4 pb-2 justify-between sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+<div class="text-slate-900 dark:text-slate-100 flex size-12 shrink-0 items-center cursor-pointer">
+<span class="material-symbols-outlined">arrow_back</span>
+</div>
+<h2 class="text-slate-900 dark:text-slate-100 text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center">Session Details</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-xl h-12 bg-transparent text-slate-900 dark:text-slate-100 gap-2 text-base font-bold leading-normal tracking-[0.015em] min-w-0 p-0">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+</div>
+<div class="px-4 pt-5 pb-2">
+<div class="flex items-center justify-between mb-2">
+<h2 class="text-slate-900 dark:text-slate-100 text-[22px] font-bold leading-tight tracking-[-0.015em]">Flutter Mastery</h2>
+<span class="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-xs font-bold rounded-full uppercase tracking-wider">Confirmed</span>
+</div>
+</div>
+<!-- Subject Card -->
+<div class="px-4 pb-4">
+<div class="flex items-stretch justify-between gap-4 rounded-xl bg-white dark:bg-slate-900 p-4 shadow-sm border border-slate-200 dark:border-slate-800">
+<div class="flex flex-col gap-1 flex-[2_2_0px]">
+<p class="text-slate-900 dark:text-slate-100 text-base font-bold leading-tight">Advanced Flutter Widgets</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm font-normal leading-normal">Mobile Development • Computer Science</p>
+<div class="flex items-center gap-2 mt-2">
+<span class="material-symbols-outlined text-primary text-sm">schedule</span>
+<span class="text-slate-600 dark:text-slate-400 text-sm">Today, 4:00 PM (60 min)</span>
+</div>
+</div>
+<div class="w-full bg-center bg-no-repeat aspect-square max-w-[80px] bg-cover rounded-xl flex-1 bg-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-3xl">flutter_dash</span>
+</div>
+</div>
+</div>
+<!-- Participants -->
+<div class="px-4 pb-4 space-y-3">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider px-1">Participants</h3>
+<!-- Tutor -->
+<div class="flex items-center gap-4 bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12 border-2 border-primary/20" data-alt="Professional headshot of male tutor Dr. Aris Thorne" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuDchWfq09G7ScolCTYyg2o3Bdw1ZJeFxNY1pm7OqnMupcFrlinEV2wJiHD3HJ-Sz6LfJ1VoIibF2VLY0c4WtfAq-qixPQQUfywSRNaZ5ni49_J3GW70vA5cQCx-7jWNM8RGuvUahMWwNX8NkqPok5bN71NgU67bw_a2iVP99BZaZ5fz0V8cM_7S9ZNYyhCzniXGdCwFL50xKU52UitpxitD30NfITjLe4lsB4-VMekf1lonOyGMklQkMkUyWrkyPlC4okNvmkJNve8L");'></div>
+<div class="flex flex-col justify-center flex-1">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal line-clamp-1">Dr. Aris Thorne</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs font-normal leading-normal">Lead Flutter Tutor</p>
+</div>
+<div class="shrink-0 flex gap-2">
+<div class="text-primary bg-primary/10 flex size-9 items-center justify-center rounded-full cursor-pointer">
+<span class="material-symbols-outlined text-xl">chat_bubble</span>
+</div>
+</div>
+</div>
+<!-- Student -->
+<div class="flex items-center gap-4 bg-white dark:bg-slate-900 rounded-xl p-3 border border-slate-200 dark:border-slate-800">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-12 w-12 border-2 border-slate-200 dark:border-slate-700" data-alt="Headshot of female student Jane Doe" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA6P8pSOS7jIuxQTK8mQrMKb0nVeM56oZG5CtQPmeHWfx7_I41RYc6az5wis63BtujrO8uxadaN0_HRN9WMTHmZKJM7dV_aTCMM3sZSCgJRSOat4DufFJC2gUJI4-vDyjdqO5WleCE-t-p1Qk2ph6Jq9C4VzjyLWMNkf-ZMr-H5NRfJw5mypq2dR9Bf2uwcILD_hicEasuTaXMpmQ-v1KUwsIIAjecNg3tc8zCG20vZPIZoCctEuCKMFl8KfSroc0TzPvo1l-KDRvC7");'></div>
+<div class="flex flex-col justify-center flex-1">
+<p class="text-slate-900 dark:text-slate-100 text-base font-semibold leading-normal line-clamp-1">Jane Doe</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs font-normal leading-normal">Student</p>
+</div>
+</div>
+</div>
+<!-- Session Details Info -->
+<div class="px-4 pb-6 space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-slate-100 dark:bg-slate-800/50 p-3 rounded-lg">
+<p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Duration</p>
+<p class="text-slate-900 dark:text-slate-100 font-semibold">1 Hour</p>
+</div>
+<div class="bg-slate-100 dark:bg-slate-800/50 p-3 rounded-lg">
+<p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Platform</p>
+<p class="text-slate-900 dark:text-slate-100 font-semibold">In-App Video</p>
+</div>
+</div>
+<div class="space-y-2">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider px-1">Notes</h3>
+<div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                    "We will be covering custom painters and complex animation controllers. Please have the starter project from last week ready for review."
+                </div>
+</div>
+<div class="space-y-2">
+<div class="flex items-center justify-between px-1">
+<h3 class="text-slate-900 dark:text-slate-100 text-sm font-bold uppercase tracking-wider">Resources</h3>
+<span class="text-primary text-xs font-bold cursor-pointer">Upload New</span>
+</div>
+<div class="space-y-2">
+<div class="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">
+<span class="material-symbols-outlined text-red-500">picture_as_pdf</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-slate-900 dark:text-slate-100 text-sm font-medium truncate">Custom_Painters_Guide.pdf</p>
+<p class="text-slate-500 dark:text-slate-400 text-[10px]">2.4 MB</p>
+</div>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer">download</span>
+</div>
+<div class="flex items-center gap-3 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+<div class="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+<span class="material-symbols-outlined text-blue-500">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-slate-900 dark:text-slate-100 text-sm font-medium truncate">Animation_Logic_Notes.docx</p>
+<p class="text-slate-500 dark:text-slate-400 text-[10px]">1.1 MB</p>
+</div>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer">download</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="mt-auto p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 sticky bottom-0 flex flex-col gap-3">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined">videocam</span>
+                Join Session
+            </button>
+<button class="w-full bg-transparent hover:bg-red-50 dark:hover:bg-red-900/10 text-red-500 font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all">
+<span class="material-symbols-outlined text-sm">cancel</span>
+                Cancel Session
+            </button>
+</div>
+</div>
+</body></html>

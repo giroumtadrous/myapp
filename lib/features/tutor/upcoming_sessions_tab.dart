@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
@@ -10,7 +10,6 @@ import '../../utils/meeting_utils.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/fade_in_stagger.dart';
-import '../../widgets/session_card.dart';
 import '../booking/session_details_screen.dart';
 
 class UpcomingSessionsTab extends StatelessWidget {
@@ -45,31 +44,42 @@ class UpcomingSessionsTab extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: sessions.length,
-          itemBuilder: (context, index) {
-            final session = sessions[index];
-            return FadeInStagger(
-              index: index,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _SessionCard(session: session, showStudentName: true),
-              ),
-            );
-          },
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Upcoming Sessions',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                TextButton(onPressed: () {}, child: const Text('View All')),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...List.generate(sessions.length, (index) {
+              final session = sessions[index];
+              return FadeInStagger(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _UpcomingSessionTile(session: session),
+                ),
+              );
+            }),
+          ],
         );
       },
     );
   }
 }
 
-class _SessionCard extends StatelessWidget {
+class _UpcomingSessionTile extends StatelessWidget {
   final SessionModel session;
-  final bool showStudentName;
   final SessionRepository _sessionRepository = SessionRepository();
 
-  _SessionCard({required this.session, required this.showStudentName});
+  _UpcomingSessionTile({required this.session});
 
   Future<void> _startMeeting(BuildContext context) async {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -100,18 +110,13 @@ class _SessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final personLabel = showStudentName
-        ? 'Student: ${session.studentName ?? 'Unknown'}'
-        : 'Tutor: ${session.tutorName ?? 'Unknown'}';
+    final date = DateFormat('MMM').format(session.dateTime).toUpperCase();
+    final day = DateFormat('d').format(session.dateTime);
+    final subtitle =
+        'with ${session.studentName ?? 'Unknown'}  ${DateFormat.jm().format(session.dateTime)}';
 
-    return SessionCard(
-      tutorName: personLabel,
-      subject: session.subject,
-      date: DateFormat.yMMMd().format(session.dateTime),
-      timeRange: DateFormat.jm().format(session.dateTime),
-      statusLabel: sessionStatusLabel(session.status),
-      statusColor: sessionStatusColor(session.status),
-      isActive: false,
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
       onTap: () {
         Navigator.of(context).push(
           AppTransitions.slideFromRight(
@@ -119,9 +124,94 @@ class _SessionCard extends StatelessWidget {
           ),
         );
       },
-      onJoinMeet: session.status == 'confirmed'
-          ? () => _startMeeting(context)
-          : null,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF2FF),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    date,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF4051B5),
+                    ),
+                  ),
+                  Text(
+                    day,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      height: 1,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    session.subject,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: sessionStatusColor(session.status).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: Text(
+                      sessionStatusLabel(session.status),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: sessionStatusColor(session.status),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: session.status == 'confirmed'
+                  ? () => _startMeeting(context)
+                  : null,
+              icon: const Icon(Icons.video_call_outlined),
+              color: const Color(0xFF4051B5),
+              tooltip: 'Join session',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

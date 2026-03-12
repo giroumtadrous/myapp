@@ -11,14 +11,12 @@ import '../../services/user_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../utils/meeting_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
-import '../../widgets/category_chip.dart';
 import '../../widgets/fade_in_stagger.dart';
-import '../../models/subject_categories.dart';
-import '../../widgets/search_bar_widget.dart';
 import '../../widgets/session_card.dart';
 import '../../widgets/tutor_card.dart';
 import '../booking/session_details_screen.dart';
 import '../booking/tutor_booking_screen.dart';
+import '../explore/explore_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -32,43 +30,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _tutorsRepository = TutorsRepository();
   final _sessionRepository = SessionRepository();
 
-  final _categories = const [
-    (id: 'all', label: 'All', icon: Icons.grid_view_rounded),
-    (id: 'math', label: 'Mathematics', icon: Icons.calculate_outlined),
-    (id: 'physics', label: 'Physics', icon: Icons.science_outlined),
-    (id: 'cs', label: 'Computer Science', icon: Icons.computer),
-  ];
-
-  int _selectedCategoryIndex = 0;
-  String? _selectedSubject;
-  String _searchQuery = '';
-
-  /// compute unique, sorted list of subjects from a list of tutors.
-  /// Optionally restrict to the provided [mainCategory]; when null (or
-  /// "all") the full set of subjects from the tutors is returned.  This
-  /// ensures that only math subjects show up when the math category is shown,
-  /// physics subjects when physics is selected, etc.
-  List<String> _subjectsForTutors(List<Tutor> tutors, String? mainCategory) {
-    final set = <String>{};
-    for (final t in tutors) {
-      set.addAll(t.subjects);
-    }
-    if (mainCategory != null && mainCategory != 'all') {
-      // filter out any subject not belonging to the chosen main category
-      final allowed = SubjectCategories.subjectsForMain(mainCategory);
-      set.removeWhere((s) => !allowed.contains(s));
-    }
-    final subjects = set.toList()..sort();
-    return subjects;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
-    final selectedCategoryId = _categories[_selectedCategoryIndex].id;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F8),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -80,65 +48,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   _Header(userService: _userService),
                   const SizedBox(height: 24),
-                  SearchBarWidget(
-                    hintText: 'Search tutors by name',
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value.trim().toLowerCase();
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Find a tutor',
+                        'Top Rated Tutors',
                         style: textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       TextButton(
-                        onPressed: () {},
-                        child: const Text('See all'),
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const ExploreScreen(),
+                            ),
+                          );
+                        },
+                        child: const Text('Explore'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  SizedBox(
-                    height: 40,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _categories.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (context, index) {
-                        final label = _categories[index].label;
-                        final icon = _categories[index].icon;
-                        return CategoryChip(
-                          label: label,
-                          icon: icon,
-                          isSelected: index == _selectedCategoryIndex,
-                          onTap: () {
-                            setState(() {
-                              _selectedCategoryIndex = index;
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  // when a category is selected we also want to surface the
-                  // subjects that fall under that main area.  the tutors stream
-                  // already filters by `main`, so we can compute the unique
-                  // subjects directly from the returned tutors.
                   StreamBuilder<List<Tutor>>(
-                    stream: _tutorsRepository.getTutors(
-                      categoryFilter: selectedCategoryId == 'all'
-                          ? null
-                          : selectedCategoryId,
-                      subjectFilter: _selectedSubject,
-                    ),
+                    stream: _tutorsRepository.getTutors(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _TutorsLoadingState();
@@ -152,147 +85,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         );
                       }
 
-                      final tutors = snapshot.data ?? [];
-                      final filteredTutors = _searchQuery.isEmpty
-                          ? tutors
-                          : tutors
-                                .where(
-                                  (tutor) => tutor.name.toLowerCase().contains(
-                                    _searchQuery,
-                                  ),
-                                )
-                                .toList();
-                      final subjects = _subjectsForTutors(
-                        filteredTutors,
-                        selectedCategoryId == 'all' ? null : selectedCategoryId,
-                      );
+                      final tutors = [...(snapshot.data ?? [])]
+                        ..sort((a, b) => b.rating.compareTo(a.rating));
+                      final topTutors = tutors.take(3).toList();
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (subjects.isNotEmpty) ...[
-                            Text(
-                              'Subjects',
-                              style: textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: subjects.map((s) {
-                                final selected = _selectedSubject == s;
-                                return GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      if (selected) {
-                                        _selectedSubject = null;
-                                      } else {
-                                        _selectedSubject = s;
-                                      }
-                                    });
-                                  },
-                                  child: Chip(
-                                    label: Text(s),
-                                    backgroundColor: selected
-                                        ? Theme.of(
-                                            context,
-                                          ).colorScheme.primary.withOpacity(0.1)
-                                        : null,
-                                    side: selected
-                                        ? BorderSide(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                          )
-                                        : null,
+                          if (topTutors.isEmpty)
+                            const _TutorsEmptyState()
+                          else
+                            Column(
+                              children: List.generate(topTutors.length, (
+                                index,
+                              ) {
+                                final tutor = topTutors[index];
+
+                                return FadeInStagger(
+                                  index: index,
+                                  child: TutorCard(
+                                    tutor: tutor,
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        AppTransitions.slideFromRight(
+                                          page: TutorBookingScreen(tutor: tutor),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
-                          if (_selectedSubject != null) ...[
-                            Row(
-                              children: [
-                                Text(
-                                  'Filter: $_selectedSubject',
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      _selectedSubject = null;
-                                    });
-                                  },
-                                  child: const Text('Clear'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                          Text(
-                            'Recommended tutors',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          if (filteredTutors.isEmpty)
-                            _TutorsEmptyState(
-                              categoryFilter: selectedCategoryId == 'all'
-                                  ? null
-                                  : selectedCategoryId,
-                            )
-                          else
-                            SizedBox(
-                              height: 230,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: filteredTutors.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(width: 12),
-                                itemBuilder: (context, index) {
-                                  final tutor = filteredTutors[index];
-                                  // compute per-tutor visible subjects for the
-                                  // currently selected category. Prefer DB
-                                  // provided mapping, fallback to local filter.
-                                  final visible = tutor.subjectsByMain != null
-                                      ? tutor.subjectsByMain![selectedCategoryId] ??
-                                            []
-                                      : tutor.subjects
-                                            .where(
-                                              (s) =>
-                                                  SubjectCategories.subjectsForMain(
-                                                    selectedCategoryId,
-                                                  ).contains(s),
-                                            )
-                                            .toList();
-
-                                  return FadeInStagger(
-                                    index: index,
-                                    child: TutorCard(
-                                      tutor: tutor,
-                                      visibleSubjects: visible.isEmpty
-                                          ? null
-                                          : visible,
-                                      onTap: () {
-                                        Navigator.of(context).push(
-                                          AppTransitions.slideFromRight(
-                                            page: TutorBookingScreen(
-                                              tutor: tutor,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  );
-                                },
-                              ),
+                              }),
                             ),
                         ],
                       );
@@ -300,7 +122,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   const SizedBox(height: 24),
                   Text(
-                    'Upcoming sessions',
+                    'Upcoming Sessions',
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -508,13 +330,10 @@ class _TutorsErrorState extends StatelessWidget {
 }
 
 class _TutorsEmptyState extends StatelessWidget {
-  final String? categoryFilter;
-
-  const _TutorsEmptyState({this.categoryFilter});
+  const _TutorsEmptyState();
 
   @override
   Widget build(BuildContext context) {
-    final hasFilter = categoryFilter != null && categoryFilter!.isNotEmpty;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -524,9 +343,7 @@ class _TutorsEmptyState extends StatelessWidget {
             Icon(Icons.school_outlined, size: 48, color: Colors.grey[400]),
             const SizedBox(height: 12),
             Text(
-              hasFilter
-                  ? 'No tutors in $categoryFilter'
-                  : 'No tutors available',
+              'No tutors available',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
@@ -534,9 +351,7 @@ class _TutorsEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              hasFilter
-                  ? 'Try another category or check back later.'
-                  : 'Check back later or try a different category.',
+              'Check back later or explore other pages.',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),
@@ -567,7 +382,7 @@ class _Header extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 18,
             offset: const Offset(0, 8),
           ),
@@ -577,7 +392,7 @@ class _Header extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 24,
-            backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
             child: Icon(Icons.person, color: theme.colorScheme.primary),
           ),
           const SizedBox(width: 12),

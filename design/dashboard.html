@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#4051b5",
+                        "background-light": "#f6f6f8",
+                        "background-dark": "#14161e",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>Flutter Tutoring - Student Home</title>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+<!-- Top Navigation / Header -->
+<header class="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-primary/10 px-4 py-3">
+<div class="flex items-center justify-between max-w-2xl mx-auto w-full">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white">
+<span class="material-symbols-outlined">school</span>
+</div>
+<div>
+<h1 class="text-lg font-bold leading-tight">LearnFlutter</h1>
+<p class="text-xs text-slate-500 dark:text-slate-400">Welcome back, Alex</p>
+</div>
+</div>
+<button class="relative p-2 rounded-full hover:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-slate-600 dark:text-slate-300">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-background-light dark:border-background-dark"></span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 w-full max-w-2xl mx-auto px-4 pb-24">
+<!-- Search Bar -->
+<div class="mt-6">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors">search</span>
+<input class="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-800 border-none rounded-xl shadow-sm focus:ring-2 focus:ring-primary/50 placeholder:text-slate-400 text-sm" placeholder="Search tutors, skills, or topics..." type="text"/>
+</div>
+</div>
+<!-- Category Chips -->
+<div class="mt-8">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Categories</h2>
+<button class="text-xs font-medium text-primary">View All</button>
+</div>
+<div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+<button class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-5 text-white shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-[18px]">terminal</span>
+<span class="text-sm font-medium">Flutter</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 text-slate-700 dark:text-slate-200">
+<span class="material-symbols-outlined text-[18px]">functions</span>
+<span class="text-sm font-medium">Dart</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 text-slate-700 dark:text-slate-200">
+<span class="material-symbols-outlined text-[18px]">science</span>
+<span class="text-sm font-medium">Firebase</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 text-slate-700 dark:text-slate-200">
+<span class="material-symbols-outlined text-[18px]">palette</span>
+<span class="text-sm font-medium">UI Design</span>
+</button>
+<button class="flex h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-5 text-slate-700 dark:text-slate-200">
+<span class="material-symbols-outlined text-[18px]">cloud</span>
+<span class="text-sm font-medium">APIs</span>
+</button>
+</div>
+</div>
+<!-- Tutor List -->
+<div class="mt-8">
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-xl font-bold tracking-tight">Top Rated Tutors</h2>
+<div class="flex items-center gap-1 text-xs font-medium bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400">
+<span>Sort by:</span>
+<span class="text-primary">Rating</span>
+<span class="material-symbols-outlined text-[14px]">expand_more</span>
+</div>
+</div>
+<!-- Tutor Card 1 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl p-5 mb-4 border border-slate-100 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
+<div class="flex gap-4">
+<img alt="Tutor profile picture" class="w-20 h-20 rounded-xl object-cover bg-slate-200" data-alt="Professional headshot of a smiling male tutor" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAziv5ivshLBtYOOT5jaPYJCm26fmyg9kz6EnL_hFmsIATa8zcdYZ-xZojoVVHkFktL1UJIwTym4qogjuzbLzrgUIBzaWangm6xgApr3N8teLrUAZeUpoTNDJfzecWIKhgs6EDLSepT2B_mjPH414y3e5dmX0ObBvXhX6pWiV2c0n84--RfiQ7UTTq2UlPU5LGAS5BTtPvKIjYJJn-qsyEQySt8C6KLic1qHUqnwSGAO5A8eA9bdrZDlqLd-zTvaeFePwzF3jLpall5"/>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-bold text-lg leading-none">James Wilson</h3>
+<p class="text-xs text-slate-500 mt-1 uppercase font-medium">Google Certified Developer</p>
+</div>
+<div class="flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded text-yellow-700 dark:text-yellow-500">
+<span class="material-symbols-outlined text-[16px] fill-1">star</span>
+<span class="text-xs font-bold">4.9</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mt-3">
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Flutter</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Architecture</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Dart</span>
+</div>
+</div>
+</div>
+<p class="mt-4 text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    Senior Flutter Architect with 5+ years of experience in high-performance mobile apps. I specialize in State Management (Bloc/Riverpod) and CI/CD pipelines.
+                </p>
+<div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Hourly Rate</span>
+<span class="text-lg font-bold text-primary">$45.00</span>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20">
+                        Book Session
+                    </button>
+</div>
+</div>
+<!-- Tutor Card 2 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl p-5 mb-4 border border-slate-100 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
+<div class="flex gap-4">
+<img alt="Tutor profile picture" class="w-20 h-20 rounded-xl object-cover bg-slate-200" data-alt="Portrait of a young woman with glasses" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8a_2O5QOi4rw71NSZgipUn3Ekk0XkJe8yBu0n3tFKDFlAMJpTzgGSo3lrOTHTRrcp0HJUN1g5uD45tSCW0pzdhPbzVO8HnCl_DtkNm-TpIc9c-Y7ULkiQtUHVaU625gIz4ukfIJpH8a4x0rvEthKx65StMDNBuxuddAbz_mAzacyNdYIH78lqxAGCG8RFLpD-71L7b7mhPCFSD7r7jLEeREFJkyUAs-QJlgLW-Bkd8kubrxgbvjFw9IA3AAlJRJYY_OuoFBDvRSCT"/>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-bold text-lg leading-none">Sarah Chen</h3>
+<p class="text-xs text-slate-500 mt-1 uppercase font-medium">UI/UX Flutter Specialist</p>
+</div>
+<div class="flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded text-yellow-700 dark:text-yellow-500">
+<span class="material-symbols-outlined text-[16px] fill-1">star</span>
+<span class="text-xs font-bold">4.8</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mt-3">
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Animations</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">UI Design</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Firebase</span>
+</div>
+</div>
+</div>
+<p class="mt-4 text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    Passionate about creating beautiful, fluid interfaces in Flutter. Helping students bridge the gap between Figma designs and production-ready code.
+                </p>
+<div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Hourly Rate</span>
+<span class="text-lg font-bold text-primary">$38.00</span>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20">
+                        Book Session
+                    </button>
+</div>
+</div>
+<!-- Tutor Card 3 -->
+<div class="bg-white dark:bg-slate-800 rounded-xl p-5 mb-4 border border-slate-100 dark:border-slate-700/50 shadow-sm transition-all hover:shadow-md">
+<div class="flex gap-4">
+<img alt="Tutor profile picture" class="w-20 h-20 rounded-xl object-cover bg-slate-200" data-alt="Casual headshot of a friendly male tutor" src="https://lh3.googleusercontent.com/aida-public/AB6AXuApe4ZSysIlCVauoX7hRnWWw_36_03iDPsKmd9wKoG2lh2pXxhgKGOIlH3gFfs-H2Cnd9U2nFV7y4nfRju22yGetm4peDaRmos4He57GHhkYFnDxjKoE9qMa6InhIjP1HOc-vx1ed_IHJYyLqcY3Q_DRM9b1xY4Fr2QlRbg0AMJuaA43xhU8H77ZJ3_wg3WLuiW6CsOYvvW9X0qdxIKC4YeMp1Yj7dXP8NKQGDJu-qoxdmM1uvx-E-j-hdEWs3lysSp7zLGvBAnPrPq"/>
+<div class="flex-1">
+<div class="flex justify-between items-start">
+<div>
+<h3 class="font-bold text-lg leading-none">Marcus Miller</h3>
+<p class="text-xs text-slate-500 mt-1 uppercase font-medium">Backend &amp; API Expert</p>
+</div>
+<div class="flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-0.5 rounded text-yellow-700 dark:text-yellow-500">
+<span class="material-symbols-outlined text-[16px] fill-1">star</span>
+<span class="text-xs font-bold">4.7</span>
+</div>
+</div>
+<div class="flex flex-wrap gap-2 mt-3">
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">REST API</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Security</span>
+<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold uppercase">Supabase</span>
+</div>
+</div>
+</div>
+<p class="mt-4 text-sm text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    Focus on building robust Flutter applications connected to complex backend systems. Expert in authentication, sockets, and local storage.
+                </p>
+<div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+<div class="flex flex-col">
+<span class="text-[10px] text-slate-400 uppercase font-bold tracking-tight">Hourly Rate</span>
+<span class="text-lg font-bold text-primary">$40.00</span>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/20">
+                        Book Session
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 pb-safe-area">
+<div class="flex items-center justify-around max-w-2xl mx-auto h-16">
+<a class="flex flex-col items-center gap-1 group" href="#">
+<span class="material-symbols-outlined text-primary transition-transform group-active:scale-90 fill-1">home</span>
+<span class="text-[10px] font-bold text-primary uppercase">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 group text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined transition-transform group-active:scale-90">event_note</span>
+<span class="text-[10px] font-bold uppercase">Sessions</span>
+</a>
+<a class="flex flex-col items-center gap-1 group text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined transition-transform group-active:scale-90">forum</span>
+<span class="text-[10px] font-bold uppercase">Chat</span>
+</a>
+<a class="flex flex-col items-center gap-1 group text-slate-400 dark:text-slate-500" href="#">
+<span class="material-symbols-outlined transition-transform group-active:scale-90">person</span>
+<span class="text-[10px] font-bold uppercase">Profile</span>
+</a>
+</div>
+<div class="h-5 w-full bg-transparent"></div> <!-- Spacer for safe area/indicator -->
+</nav>
+<style>
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .pb-safe-area {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .fill-1 {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</body></html>

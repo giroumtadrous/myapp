@@ -7,7 +7,6 @@ import '../../utils/app_transitions.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/fade_in_stagger.dart';
-import '../../widgets/session_card.dart';
 import '../booking/session_details_screen.dart';
 
 class PastSessionsTab extends StatelessWidget {
@@ -42,46 +41,40 @@ class PastSessionsTab extends StatelessWidget {
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: sessions.length,
-          itemBuilder: (context, index) {
-            final session = sessions[index];
-            return FadeInStagger(
-              index: index,
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _SessionCard(session: session, showStudentName: true),
-              ),
-            );
-          },
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          children: [
+            const Text(
+              'Past Sessions',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            ...List.generate(sessions.length, (index) {
+              final session = sessions[index];
+              return FadeInStagger(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _PastSessionTile(session: session),
+                ),
+              );
+            }),
+          ],
         );
       },
     );
   }
 }
 
-class _SessionCard extends StatelessWidget {
+class _PastSessionTile extends StatelessWidget {
   final SessionModel session;
-  final bool showStudentName;
 
-  const _SessionCard({required this.session, required this.showStudentName});
+  const _PastSessionTile({required this.session});
 
   @override
   Widget build(BuildContext context) {
-    final personLabel = showStudentName
-        ? 'Student: ${session.studentName ?? 'Unknown'}'
-        : 'Tutor: ${session.tutorName ?? 'Unknown'}';
-
-    return SessionCard(
-      tutorName: personLabel,
-      subject: session.subject,
-      date: DateFormat.yMMMd().format(session.dateTime),
-      timeRange: DateFormat.jm().format(session.dateTime),
-      statusLabel: sessionStatusLabel(session.status),
-      statusColor: sessionStatusColor(session.status),
-      isActive: false,
-      isPast: true,
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
       onTap: () {
         Navigator.of(context).push(
           AppTransitions.slideFromRight(
@@ -89,6 +82,67 @@ class _SessionCard extends StatelessWidget {
           ),
         );
       },
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: sessionStatusColor(session.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    sessionStatusLabel(session.status).toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: sessionStatusColor(session.status),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  DateFormat('MMM d, y').format(session.dateTime),
+                  style: const TextStyle(
+                    color: Color(0xFF64748B),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              session.subject,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Student: ${session.studentName ?? 'Unknown'}',
+              style: const TextStyle(color: Color(0xFF475569)),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              DateFormat.jm().format(session.dateTime),
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

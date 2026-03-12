@@ -33,39 +33,42 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF6F6F8),
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabSelected,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: colorScheme.primary,
-        unselectedItemColor: Colors.grey[600],
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: _onTabSelected,
+        height: 72,
+        indicatorColor: const Color(0xFF4051B5).withOpacity(0.14),
+        backgroundColor: Colors.white,
+        destinations: const [
+          NavigationDestination(
             icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
             label: 'Home',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
             label: 'Explore',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note),
             label: 'Sessions',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
             label: 'Messages',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
             label: 'Profile',
           ),
         ],
