@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class SessionDocument {
   final String name;
@@ -51,22 +52,12 @@ class SessionModel {
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
-    DateTime dt;
-    final rawDate = data['dateTime'] ?? data['date'];
-    if (rawDate is Timestamp) {
-      dt = rawDate.toDate();
-    } else if (rawDate is String) {
-      // Support "yyyy-MM-dd" strings combined with optional time field
-      final timeStr = (data['time'] as String?) ?? '00:00';
-      dt = DateTime.tryParse('${rawDate}T$timeStr:00') ?? DateTime.now();
-    } else {
-      dt = DateTime.now();
-    }
+    final dt = _parseDateTime(data);
 
     return SessionModel(
       id: doc.id,
       tutorId: (data['tutorId'] ?? data['tutorID'] ?? '').toString(),
-      studentId: (data['studentId'] ?? '').toString(),
+      studentId: (data['studentId'] ?? data['studentID'] ?? '').toString(),
       subject: (data['subject'] ?? '').toString(),
       dateTime: dt,
       status: (data['status'] ?? 'pending').toString(),
@@ -83,6 +74,69 @@ class SessionModel {
           (data['amount'] as num?)?.toDouble() ??
           0,
     );
+  }
+
+  static DateTime _parseDateTime(Map<String, dynamic> data) {
+    final rawDate = data['dateTime'] ?? data['sessionDateTime'] ?? data['date'];
+
+    if (rawDate is Timestamp) {
+      return rawDate.toDate();
+    }
+
+    if (rawDate is String && rawDate.trim().isNotEmpty) {
+      final normalizedDate = rawDate.trim();
+      final parsedIso = DateTime.tryParse(normalizedDate);
+      if (parsedIso != null) return parsedIso;
+
+      final timeRaw = (data['time'] ?? data['timeDisplay'] ?? '00:00')
+          .toString()
+          .trim();
+      final parsedTime = _parseTimeOfDay(timeRaw);
+
+      // Try a few common date formats used by older documents.
+      final dateFormats = <DateFormat>[
+        DateFormat('yyyy-MM-dd'),
+        DateFormat('yyyy/MM/dd'),
+        DateFormat('MM/dd/yyyy'),
+        DateFormat('dd/MM/yyyy'),
+      ];
+
+      for (final formatter in dateFormats) {
+        try {
+          final parsedDate = formatter.parseStrict(normalizedDate);
+          return DateTime(
+            parsedDate.year,
+            parsedDate.month,
+            parsedDate.day,
+            parsedTime.hour,
+            parsedTime.minute,
+          );
+        } catch (_) {}
+      }
+    }
+
+    return DateTime.now();
+  }
+
+  static DateTime _parseTimeOfDay(String value) {
+    if (value.isEmpty) {
+      return DateTime(1970, 1, 1, 0, 0);
+    }
+
+    final formats = <DateFormat>[
+      DateFormat('HH:mm'),
+      DateFormat('HH:mm:ss'),
+      DateFormat.jm(),
+    ];
+
+    for (final formatter in formats) {
+      try {
+        final parsed = formatter.parseStrict(value);
+        return DateTime(1970, 1, 1, parsed.hour, parsed.minute);
+      } catch (_) {}
+    }
+
+    return DateTime(1970, 1, 1, 0, 0);
   }
 
   SessionModel copyWith({

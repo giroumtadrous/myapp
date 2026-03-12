@@ -244,8 +244,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final session = filteredSessions[index];
-                        final isSessionConfirmed =
-                            session.status == 'confirmed';
+                        final canJoin = _sessionRepository.canJoinSession(
+                          session,
+                        );
 
                         return FadeInStagger(
                           index: index,
@@ -273,7 +274,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                     ),
                                   );
                                 },
-                                onJoinMeet: isSessionConfirmed
+                                onJoinMeet: canJoin
                                     ? () => _startMeeting(session, user)
                                     : null,
                               ),

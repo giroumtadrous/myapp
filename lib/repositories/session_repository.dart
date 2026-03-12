@@ -83,14 +83,15 @@ class SessionRepository {
 
   // ── Upcoming sessions (status in ['booked','pending'], dateTime > now) ────
   Stream<List<SessionModel>> upcomingSessions(String studentId) {
+    final normalizedStudentId = studentId.trim();
     return _firestore
         .collection('sessions')
-        .where('studentId', isEqualTo: studentId)
         .where(
           'status',
           whereIn: [
             'booked',
             'confirmed',
+            'approved',
             'pending',
             'pending_payment_verification',
             'payment_rejected',
@@ -101,6 +102,7 @@ class SessionRepository {
           (snap) => _enrichWithTutorNames(
             snap.docs
                 .map((d) => SessionModel.fromFirestore(d))
+                .where((s) => s.studentId.trim() == normalizedStudentId)
                 .where((s) => s.dateTime.isAfter(DateTime.now()))
                 .toList()
               ..sort((a, b) => a.dateTime.compareTo(b.dateTime)),
@@ -110,14 +112,15 @@ class SessionRepository {
 
   // ── Past sessions (dateTime < now, any terminal status) ─────────────────
   Stream<List<SessionModel>> pastSessions(String studentId) {
+    final normalizedStudentId = studentId.trim();
     return _firestore
         .collection('sessions')
-        .where('studentId', isEqualTo: studentId)
         .snapshots()
         .asyncMap(
           (snap) => _enrichWithTutorNames(
             snap.docs
                 .map((d) => SessionModel.fromFirestore(d))
+                .where((s) => s.studentId.trim() == normalizedStudentId)
                 .where((s) => s.dateTime.isBefore(DateTime.now()))
                 .toList()
               ..sort((a, b) => b.dateTime.compareTo(a.dateTime)),
@@ -181,14 +184,15 @@ class SessionRepository {
 
   // ── Upcoming sessions for a tutor (dateTime >= now) ──────────────────────
   Stream<List<SessionModel>> tutorUpcomingSessions(String tutorId) {
+    final normalizedTutorId = tutorId.trim();
     return _firestore
         .collection('sessions')
-        .where('tutorId', isEqualTo: tutorId)
         .snapshots()
         .asyncMap(
           (snap) => _enrichWithStudentNames(
             snap.docs
                 .map((d) => SessionModel.fromFirestore(d))
+                .where((s) => s.tutorId.trim() == normalizedTutorId)
                 .where((s) => s.dateTime.isAfter(DateTime.now()))
                 .toList()
               ..sort((a, b) => a.dateTime.compareTo(b.dateTime)),
@@ -198,14 +202,15 @@ class SessionRepository {
 
   // ── Past sessions for a tutor (dateTime < now) ────────────────────────────
   Stream<List<SessionModel>> tutorPastSessions(String tutorId) {
+    final normalizedTutorId = tutorId.trim();
     return _firestore
         .collection('sessions')
-        .where('tutorId', isEqualTo: tutorId)
         .snapshots()
         .asyncMap(
           (snap) => _enrichWithStudentNames(
             snap.docs
                 .map((d) => SessionModel.fromFirestore(d))
+                .where((s) => s.tutorId.trim() == normalizedTutorId)
                 .where((s) => s.dateTime.isBefore(DateTime.now()))
                 .toList()
               ..sort((a, b) => b.dateTime.compareTo(a.dateTime)),

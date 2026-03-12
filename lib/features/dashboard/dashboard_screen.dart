@@ -244,7 +244,7 @@ class _UpcomingSessionsList extends StatelessWidget {
           children: sessions.map((s) {
             final dateStr = DateFormat.yMMMd().format(s.dateTime);
             final timeStr = DateFormat.jm().format(s.dateTime);
-            final isSessionConfirmed = s.status == 'confirmed';
+            final canJoin = sessionRepository.canJoinSession(s);
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: SessionCard(
@@ -262,7 +262,7 @@ class _UpcomingSessionsList extends StatelessWidget {
                     ),
                   );
                 },
-                onJoinMeet: isSessionConfirmed
+                onJoinMeet: canJoin
                     ? () => _startMeeting(context, s, currentUser)
                     : null,
                 onCancel: () => _confirmCancel(context, s),
