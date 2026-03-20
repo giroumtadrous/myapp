@@ -20,8 +20,11 @@ class TutorDashboardScreen extends StatefulWidget {
 class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
   final _tutorAuthRepository = TutorAuthRepository();
   int _selectedTabIndex = 0;
+  bool _signingOut = false;
 
   Future<void> _signOut() async {
+    if (_signingOut) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -41,8 +44,15 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
     );
 
     if (confirmed == true) {
-      await _tutorAuthRepository.signOut();
-      // Navigation is handled by AuthWrapper.
+      setState(() => _signingOut = true);
+      try {
+        await _tutorAuthRepository.signOut();
+        // Navigation is handled by AuthWrapper.
+      } finally {
+        if (mounted) {
+          setState(() => _signingOut = false);
+        }
+      }
     }
   }
 
@@ -96,8 +106,14 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
             tooltip: 'Edit Availability',
           ),
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _signOut,
+            icon: _signingOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout),
+            onPressed: _signingOut ? null : _signOut,
             tooltip: 'Sign out',
           ),
         ],

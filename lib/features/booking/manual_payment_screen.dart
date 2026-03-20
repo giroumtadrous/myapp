@@ -18,6 +18,9 @@ class ManualPaymentScreen extends StatefulWidget {
     required this.timeDisplay,
     required this.sessionDateTime,
     required this.amount,
+    required this.durationMinutes,
+    required this.slotCount,
+    required this.reservedSlots,
   });
 
   final String sessionId;
@@ -28,6 +31,9 @@ class ManualPaymentScreen extends StatefulWidget {
   final String timeDisplay;
   final DateTime sessionDateTime;
   final double amount;
+  final int durationMinutes;
+  final int slotCount;
+  final List<String> reservedSlots;
 
   @override
   State<ManualPaymentScreen> createState() => _ManualPaymentScreenState();
@@ -119,6 +125,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
         time: widget.time,
         timeDisplay: widget.timeDisplay,
         amount: widget.amount,
+        durationMinutes: widget.durationMinutes,
+        slotCount: widget.slotCount,
+        reservedSlots: widget.reservedSlots,
         transferTime: _transferTime!,
         screenshotUrl: _screenshotUrlController.text.trim(),
         note: _noteController.text,
@@ -189,6 +198,11 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
                         style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Duration: ${widget.durationMinutes} minutes (${widget.slotCount} slot${widget.slotCount > 1 ? 's' : ''})',
+                        style: textTheme.bodySmall,
                       ),
                     ],
                   ),

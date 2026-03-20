@@ -45,5 +45,13 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>FirebaseAppDelegateProxyEnabled</key>
+	<true/>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>We use notifications to keep you updated on payment and session status.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 </dict>
 </plist>

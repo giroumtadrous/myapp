@@ -109,7 +109,7 @@ class SignInPage extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Flutter Academy',
+                            'TutorLink',
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
                             ),

@@ -1,7 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/notification_service.dart';
+import '../../services/user_service.dart';
 import '../../widgets/pressable_scale.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -13,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
+  final _institutionController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -24,6 +26,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _institutionController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -32,6 +35,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validateInputs() {
     final name = _nameController.text.trim();
+    final institution = _institutionController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -41,6 +45,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (email.isEmpty) {
       return 'Please enter your email.';
+    }
+    if (institution.isEmpty) {
+      return 'Please enter your university or high school.';
     }
     if (password.isEmpty) {
       return 'Please enter a password.';
@@ -67,25 +74,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final name = _nameController.text.trim();
+    final institution = _institutionController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     setState(() => _isLoading = true);
 
     try {
+      // Create Firebase Auth user
       final credential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
       final user = credential.user;
       if (user == null) return;
 
-      await user.updateDisplayName(_nameController.text.trim());
+      await user.updateDisplayName(name);
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'name': name,
-        'email': email,
-        'role': 'student',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      // Save user to Firestore with FCM token
+      final userService = UserService();
+      await userService.saveUserWithFCM(
+        uid: user.uid,
+        name: name,
+        email: email,
+        role: 'student',
+        institution: institution,
+      );
+
+      // Initialize notification service for this user
+      await NotificationService.instance.initialize();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account created successfully!')),
+        );
+      }
       // authStateChanges() in main.dart handles navigation to MainNavigationScreen
     } on FirebaseAuthException catch (e) {
       String message = 'Failed to create account. Please try again.';
@@ -101,12 +122,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(message)));
       }
-    } on FirebaseException catch (e) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.message ?? 'Failed to save profile. Please try again.',
+              e.toString().contains('Exception:')
+                  ? e.toString().replaceFirst('Exception: ', '')
+                  : 'Failed to save profile. Please try again.',
             ),
           ),
         );
@@ -161,6 +184,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: const InputDecoration(
                       hintText: 'you@example.com',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('University / High School', style: textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _institutionController,
+                    decoration: const InputDecoration(
+                      hintText: 'Cairo University / Springfield High School',
                     ),
                   ),
                   const SizedBox(height: 16),

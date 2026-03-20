@@ -79,6 +79,11 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                     final sessionData = sessionSnap.data?.data();
                     final subject = (sessionData?['subject'] ?? 'Unknown')
                         .toString();
+                    final rawDuration =
+                      sessionData?['durationMinutes'] ?? sessionData?['duration'];
+                    final durationMinutes = rawDuration is num
+                      ? rawDuration.toInt()
+                      : int.tryParse((rawDuration ?? '').toString()) ?? 60;
 
                     return Card(
                       child: Padding(
@@ -96,6 +101,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
                             Text('Student: ${payment.studentId}'),
                             Text('Tutor: ${payment.tutorId}'),
                             Text('Subject: $subject'),
+                            Text('Duration: $durationMinutes min'),
                             Text(
                               'Amount: \$${payment.amount.toStringAsFixed(2)}',
                             ),

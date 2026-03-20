@@ -27,6 +27,8 @@ class SessionModel {
   final String? meetLink;
   final String? paymentId;
   final double amount;
+  final int slotCount;
+  final List<String> reservedSlots;
   final String? tutorName; // populated after join with tutors collection
   final String? studentName;
   final String? tutorPhotoUrl;
@@ -45,6 +47,8 @@ class SessionModel {
     this.meetLink,
     this.paymentId,
     this.amount = 0,
+    this.slotCount = 1,
+    this.reservedSlots = const [],
     this.tutorName,
     this.studentName,
     this.tutorPhotoUrl,
@@ -73,6 +77,8 @@ class SessionModel {
           (data['hourlyRate'] as num?)?.toDouble() ??
           (data['amount'] as num?)?.toDouble() ??
           0,
+      slotCount: _toSlotCount(data),
+      reservedSlots: _toReservedSlots(data),
     );
   }
 
@@ -85,13 +91,26 @@ class SessionModel {
 
     if (rawDate is String && rawDate.trim().isNotEmpty) {
       final normalizedDate = rawDate.trim();
-      final parsedIso = DateTime.tryParse(normalizedDate);
-      if (parsedIso != null) return parsedIso;
-
-      final timeRaw = (data['time'] ?? data['timeDisplay'] ?? '00:00')
-          .toString()
-          .trim();
+      final timeRaw = _extractStartTime(
+        (data['time'] ?? data['timeDisplay'] ?? '').toString().trim(),
+      );
       final parsedTime = _parseTimeOfDay(timeRaw);
+      final parsedIso = DateTime.tryParse(normalizedDate);
+      if (parsedIso != null) {
+        // If the date string has no explicit time but time is stored separately,
+        // merge both so upcoming/past filters classify sessions correctly.
+        final hasTimeInsideDate = RegExp(r'T\d{1,2}:').hasMatch(normalizedDate);
+        if (!hasTimeInsideDate && timeRaw.isNotEmpty) {
+          return DateTime(
+            parsedIso.year,
+            parsedIso.month,
+            parsedIso.day,
+            parsedTime.hour,
+            parsedTime.minute,
+          );
+        }
+        return parsedIso;
+      }
 
       // Try a few common date formats used by older documents.
       final dateFormats = <DateFormat>[
@@ -116,6 +135,14 @@ class SessionModel {
     }
 
     return DateTime.now();
+  }
+
+  static String _extractStartTime(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) return '';
+
+    final rangeSplit = trimmed.split(RegExp(r'\s*-\s*|\|'));
+    return rangeSplit.first.trim();
   }
 
   static DateTime _parseTimeOfDay(String value) {
@@ -158,6 +185,8 @@ class SessionModel {
       meetLink: meetLink,
       paymentId: paymentId,
       amount: amount,
+      slotCount: slotCount,
+      reservedSlots: reservedSlots,
       tutorName: tutorName ?? this.tutorName,
       studentName: studentName ?? this.studentName,
       tutorPhotoUrl: tutorPhotoUrl ?? this.tutorPhotoUrl,
@@ -171,8 +200,46 @@ class SessionModel {
     if (value is String) {
       final parsed = int.tryParse(value.trim());
       if (parsed != null) return parsed;
+
+      final embedded = RegExp(r'\d+').firstMatch(value);
+      if (embedded != null) {
+        final extracted = int.tryParse(embedded.group(0)!);
+        if (extracted != null) return extracted;
+      }
     }
     return 60;
+  }
+
+  static int _toSlotCount(Map<String, dynamic> data) {
+    final dynamic value = data['slotCount'];
+    if (value is num) return value.toInt().clamp(1, 24);
+    if (value is String) {
+      final parsed = int.tryParse(value.trim());
+      if (parsed != null) return parsed.clamp(1, 24);
+
+      final embedded = RegExp(r'\d+').firstMatch(value);
+      if (embedded != null) {
+        final extracted = int.tryParse(embedded.group(0)!);
+        if (extracted != null) return extracted.clamp(1, 24);
+      }
+    }
+
+    final duration = _toDurationMinutes(data);
+    final inferred = (duration / 60).round();
+    return inferred < 1 ? 1 : inferred;
+  }
+
+  static List<String> _toReservedSlots(Map<String, dynamic> data) {
+    final dynamic value = data['reservedSlots'];
+    if (value is! List) {
+      final time = (data['time'] ?? '').toString().trim();
+      return time.isEmpty ? const [] : <String>[time];
+    }
+
+    return value
+        .map((entry) => entry.toString().trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList();
   }
 
   static List<SessionDocument> _toDocuments(dynamic raw) {

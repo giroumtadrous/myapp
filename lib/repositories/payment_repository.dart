@@ -44,6 +44,9 @@ class PaymentRepository {
     required String time,
     required String timeDisplay,
     required double amount,
+    required int durationMinutes,
+    required int slotCount,
+    required List<String> reservedSlots,
     required DateTime transferTime,
     required String screenshotUrl,
     String? note,
@@ -52,9 +55,31 @@ class PaymentRepository {
       if (screenshotUrl.trim().isEmpty) {
         throw Exception('Screenshot URL cannot be empty.');
       }
+      if (reservedSlots.isEmpty) {
+        throw Exception('At least one reserved slot is required.');
+      }
 
       final paymentRef = _firestore.collection('payments').doc();
       final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+      final overlapping = await _firestore
+          .collection('sessions')
+          .where('tutorId', isEqualTo: tutorId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
+      for (final doc in overlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception('This time slot is no longer available.');
+        }
+      }
 
       await _firestore
           .runTransaction((tx) async {
@@ -87,6 +112,9 @@ class PaymentRepository {
                 'tutorId': tutorId,
                 'sessionId': sessionId,
                 'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
                 'transferTime': Timestamp.fromDate(transferTime),
                 'screenshotUrl': screenshotUrl,
                 'status': 'pending',
@@ -104,6 +132,10 @@ class PaymentRepository {
                 'timeDisplay': timeDisplay,
                 'dateTime': Timestamp.fromDate(sessionDateTime),
                 'hourlyRate': amount,
+                'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
                 'paymentId': paymentRef.id,
                 'meetLink': meetLink,
                 'status': 'pending_payment_verification',

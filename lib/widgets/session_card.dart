@@ -14,6 +14,7 @@ class SessionCard extends StatefulWidget {
   final VoidCallback? onCancel;
   final bool isPast;
   final VoidCallback? onTap;
+  final int? durationMinutes;
 
   const SessionCard({
     super.key,
@@ -28,6 +29,7 @@ class SessionCard extends StatefulWidget {
     this.onCancel,
     this.isPast = false,
     this.onTap,
+    this.durationMinutes,
   });
 
   @override
@@ -45,6 +47,8 @@ class _SessionCardState extends State<SessionCard> {
     final personLabel = widget.tutorName.contains(':')
         ? widget.tutorName
         : 'Tutor: ${widget.tutorName}';
+    final duration = widget.durationMinutes ?? 60;
+    final isLongSession = duration >= 120;
     final lift = _pressed ? -1.0 : (_hovered ? -4.0 : 0.0);
     final elevation = _pressed ? 1.0 : (_hovered ? 5.0 : 2.0);
 
@@ -119,6 +123,41 @@ class _SessionCardState extends State<SessionCard> {
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isLongSession
+                              ? const Color(0xFFFFF1D6)
+                              : const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          'Duration: $duration min',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isLongSession
+                                ? const Color(0xFFB45309)
+                                : const Color(0xFF1D4ED8),
+                          ),
+                        ),
+                      ),
+                      if (isLongSession) ...[
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.schedule,
+                          size: 14,
+                          color: Color(0xFFB45309),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Row(

@@ -133,6 +133,26 @@ class _PastSessionTile extends StatelessWidget {
               style: const TextStyle(color: Color(0xFF475569)),
             ),
             const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: session.durationMinutes >= 120
+                    ? const Color(0xFFFFF1D6)
+                    : const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                'Duration: ${session.durationMinutes} min',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: session.durationMinutes >= 120
+                      ? const Color(0xFFB45309)
+                      : const Color(0xFF1D4ED8),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
             Text(
               DateFormat.jm().format(session.dateTime),
               style: const TextStyle(

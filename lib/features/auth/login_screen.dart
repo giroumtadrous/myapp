@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/notification_service.dart';
+import '../../services/user_service.dart';
 import '../../features/auth/register_screen.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
@@ -58,10 +60,19 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
+      final userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+      
+      final user = userCredential.user;
+      if (user == null) return;
+
+      // Update FCM token for the logged-in user
+      final userService = UserService();
+      await userService.updateFCMToken(user.uid);
+
+      // Initialize notification service
+      await NotificationService.instance.initialize();
+
       if (mounted) {
         // Return to the root auth wrapper so authStateChanges can render
         // the correct dashboard and remove login from the back stack.
@@ -132,7 +143,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             SizedBox(width: 8),
                             Text(
-                              'Flutter Academy',
+                              'TutorLink',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w700,

@@ -26,12 +26,20 @@ class TutorBookingScreen extends StatefulWidget {
 
 class _TutorBookingScreenState extends State<TutorBookingScreen> {
   static const _reviewsCount = 124;
+  static const List<String> _blockingStatuses = <String>[
+    'pending',
+    'confirmed',
+    'booked',
+    'pending_payment_verification',
+  ];
 
   int _selectedSubjectIndex = 0;
+  int _selectedDurationMinutes = 60;
   late TextEditingController _notesController;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   List<String> _availableSlots = [];
+  List<String> _allSlotValuesForSelectedDay = [];
   int? _selectedSlotIndex;
   bool _loadingSlots = false;
   // Dates (normalised to midnight) that have ≥1 available slot
@@ -101,37 +109,21 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       final qs = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
-          .where(
-            'status',
-            whereIn: [
-              'pending',
-              'confirmed',
-              'booked',
-              'pending_payment_verification',
-            ],
-          )
+          .where('status', whereIn: _blockingStatuses)
           .get();
-
-      // Build a set of 'yyyy-MM-dd|HH:mm' strings that are occupied
-      final occupiedSlots = <String>{};
-      for (final doc in qs.docs) {
-        final d = doc.data();
-        final dateField = d['date']?.toString();
-        final timeField = d['time']?.toString();
-        if (dateField != null && timeField != null) {
-          occupiedSlots.add('$dateField|$timeField');
-        }
-      }
 
       final available = <DateTime>{};
       DateTime cursor = firstDay;
       while (!cursor.isAfter(lastDay)) {
         final slots = _generateSlotsForDay(cursor, weekly);
         final dateStr = DateFormat('yyyy-MM-dd').format(cursor);
-        final hasFree = slots.any((s) {
-          final value = s.split('|')[0];
-          return !occupiedSlots.contains('$dateStr|$value');
-        });
+        final bookedForDate = qs.docs.where(
+          (doc) => doc.data()['date']?.toString() == dateStr,
+        );
+        final occupied = _occupiedSlotsForDate(slots, bookedForDate.toList());
+        final hasFree =
+            _availableStartSlots(slots, occupied, _requiredSlotCount())
+                .isNotEmpty;
         if (hasFree) {
           available.add(DateTime(cursor.year, cursor.month, cursor.day));
         }
@@ -152,17 +144,129 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     final avail = weekly[weekdayName] ?? [];
     if (avail.isEmpty) return [];
 
-    final slots = <String>[];
+    final slots = <DateTime>[];
     for (final t in avail) {
       try {
         DateTime dt = DateFormat('HH:mm').parseLoose(t.toString());
         dt = DateTime(date.year, date.month, date.day, dt.hour, dt.minute);
-        slots.add(
-          '${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}',
-        );
+        slots.add(dt);
       } catch (_) {}
     }
-    return slots;
+
+    slots.sort((a, b) => a.compareTo(b));
+    return slots
+        .map(
+          (dt) =>
+              '${DateFormat('HH:mm').format(dt)}|${DateFormat.jm().format(dt)}',
+        )
+        .toList();
+  }
+
+  int _requiredSlotCount() {
+    return _selectedDurationMinutes == 120 ? 2 : 1;
+  }
+
+  Set<String> _occupiedSlotsForDate(
+    List<String> daySlots,
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookedDocs,
+  ) {
+    final occupied = <String>{};
+    final slotValues = daySlots.map((slot) => slot.split('|')[0]).toList();
+
+    for (final doc in bookedDocs) {
+      final data = doc.data();
+      final reservedRaw = data['reservedSlots'];
+      if (reservedRaw is List && reservedRaw.isNotEmpty) {
+        for (final slot in reservedRaw) {
+          final value = slot.toString().trim();
+          if (value.isNotEmpty) occupied.add(value);
+        }
+        continue;
+      }
+
+      final startTimeRaw = data['time']?.toString() ?? '';
+      if (startTimeRaw.isEmpty) continue;
+
+      String startValue;
+      try {
+        startValue = DateFormat('HH:mm').format(
+          DateFormat('HH:mm').parseLoose(startTimeRaw),
+        );
+      } catch (_) {
+        try {
+          startValue = DateFormat('HH:mm').format(
+            DateFormat.jm().parseLoose(startTimeRaw),
+          );
+        } catch (_) {
+          startValue = startTimeRaw;
+        }
+      }
+
+      final startIndex = slotValues.indexOf(startValue);
+      if (startIndex == -1) {
+        occupied.add(startValue);
+        continue;
+      }
+
+      final durationRaw = data['durationMinutes'];
+      final slotCountRaw = data['slotCount'];
+      int slotCount = 1;
+      if (slotCountRaw is num) {
+        slotCount = slotCountRaw.toInt().clamp(1, 24);
+      } else if (durationRaw is num) {
+        slotCount = (durationRaw.toInt() / 60).round().clamp(1, 24);
+      }
+
+      for (int i = 0; i < slotCount; i++) {
+        final idx = startIndex + i;
+        if (idx >= slotValues.length) break;
+        occupied.add(slotValues[idx]);
+      }
+    }
+
+    return occupied;
+  }
+
+  List<String> _availableStartSlots(
+    List<String> daySlots,
+    Set<String> occupied,
+    int requiredSlots,
+  ) {
+    if (daySlots.isEmpty) return const [];
+
+    final slotValues = daySlots.map((slot) => slot.split('|')[0]).toList();
+    final available = <String>[];
+
+    for (int i = 0; i < daySlots.length; i++) {
+      // Ensure there are enough consecutive slots remaining
+      if (i + requiredSlots > daySlots.length) break;
+
+      // Check if all required consecutive slots are free
+      bool allFree = true;
+      for (int offset = 0; offset < requiredSlots; offset++) {
+        final slotToCheck = slotValues[i + offset];
+        if (occupied.contains(slotToCheck)) {
+          allFree = false;
+          debugPrint(
+            '[Slots] For ${requiredSlots}-slot booking at index $i: '
+            'offset $offset (slot $slotToCheck) is occupied',
+          );
+          break;
+        }
+      }
+
+      if (allFree) {
+        available.add(daySlots[i]);
+        if (requiredSlots == 2) {
+          debugPrint(
+            '[Slots] Valid 120-min slot at index $i: '
+            '${slotValues[i]} + ${slotValues[i + 1]}',
+          );
+        }
+      }
+    }
+
+    return available;
   }
 
   @override
@@ -192,53 +296,60 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         return;
       }
 
-      final weekly = _extractWeeklyAvailability(data);
-      final slots = _generateSlotsForDay(date, weekly);
+      var slots = _generateSlotsForDay(date, _extractWeeklyAvailability(data));
+      
+      // Filter out past times if the selected date is today
+      final now = DateTime.now();
+      final isToday = date.year == now.year &&
+          date.month == now.month &&
+          date.day == now.day;
+      
+      if (isToday) {
+        slots = slots.where((slotStr) {
+          try {
+            final parts = slotStr.split('|');
+            final value = parts[0];
+            final slotTime = DateFormat('HH:mm').parseLoose(value);
+            final slotDateTime = DateTime(now.year, now.month, now.day,
+                slotTime.hour, slotTime.minute);
+            return slotDateTime.isAfter(now);
+          } catch (_) {
+            return true;
+          }
+        }).toList();
+      }
 
       // Query booked sessions for this tutor on the selected date
       final querySnapshot = await FirebaseFirestore.instance
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
           .where('date', isEqualTo: dateStr)
-          .where(
-            'status',
-            whereIn: [
-              'confirmed',
-              'pending',
-              'booked',
-              'pending_payment_verification',
-            ],
-          )
+          .where('status', whereIn: _blockingStatuses)
           .get();
 
-      final occupied = <String>{};
-      for (final doc in querySnapshot.docs) {
-        final d = doc.data();
-        final time = d['time']?.toString();
-        if (time != null) {
-          try {
-            occupied.add(
-              DateFormat('HH:mm').format(DateFormat('HH:mm').parseLoose(time)),
-            );
-          } catch (_) {
-            try {
-              occupied.add(
-                DateFormat('HH:mm').format(DateFormat.jm().parseLoose(time)),
-              );
-            } catch (_) {
-              occupied.add(time);
-            }
-          }
+      final occupied = _occupiedSlotsForDate(slots, querySnapshot.docs);
+      final available = _availableStartSlots(
+        slots,
+        occupied,
+        _requiredSlotCount(),
+      );
+
+      setState(() {
+        _allSlotValuesForSelectedDay = slots
+            .map((entry) => entry.split('|')[0])
+            .toList();
+        _availableSlots = available;
+        if (_selectedSlotIndex != null &&
+            _selectedSlotIndex! >= _availableSlots.length) {
+          _selectedSlotIndex = null;
         }
-      }
-
-      final available = slots
-          .where((s) => !occupied.contains(s.split('|')[0]))
-          .toList();
-
-      setState(() => _availableSlots = available);
+      });
     } catch (e) {
-      setState(() => _availableSlots = []);
+      setState(() {
+        _allSlotValuesForSelectedDay = [];
+        _availableSlots = [];
+        _selectedSlotIndex = null;
+      });
     } finally {
       setState(() => _loadingSlots = false);
     }
@@ -251,8 +362,17 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     String slotDisplay,
   ) async {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    final docId =
-        '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
+    final slotCount = _requiredSlotCount();
+    final startIndex = _allSlotValuesForSelectedDay.indexOf(slotValue);
+    if (startIndex == -1 || startIndex + slotCount > _allSlotValuesForSelectedDay.length) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('The selected slot is no longer available.')),
+      );
+      return;
+    }
+
+    // Validate that the selected date/time is not in the past
     final sessionDateTime = DateTime(
       date.year,
       date.month,
@@ -260,6 +380,19 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
       int.parse(slotValue.split(':')[0]),
       int.parse(slotValue.split(':')[1]),
     );
+    
+    if (sessionDateTime.isBefore(DateTime.now())) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot book a session in the past')),
+      );
+      return;
+    }
+
+    final reservedSlots = _allSlotValuesForSelectedDay
+        .sublist(startIndex, startIndex + slotCount);
+    final docId =
+        '${widget.tutor.id}_${dateStr}_${slotValue.replaceAll(':', '')}';
 
     Navigator.of(context).push(
       AppTransitions.slideFromRight(
@@ -271,7 +404,10 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           time: slotValue,
           timeDisplay: slotDisplay,
           sessionDateTime: sessionDateTime,
-          amount: widget.tutor.hourlyRate,
+          amount: widget.tutor.hourlyRate * slotCount,
+          durationMinutes: _selectedDurationMinutes,
+          slotCount: slotCount,
+          reservedSlots: reservedSlots,
         ),
       ),
     );
@@ -327,6 +463,33 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
               );
             },
           ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Session Duration',
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<int>(
+          segments: const [
+            ButtonSegment<int>(value: 60, label: Text('60 min')),
+            ButtonSegment<int>(value: 120, label: Text('120 min')),
+          ],
+          selected: <int>{_selectedDurationMinutes},
+          onSelectionChanged: (selection) {
+            final value = selection.first;
+            if (value == _selectedDurationMinutes) return;
+            setState(() {
+              _selectedDurationMinutes = value;
+              _selectedSlotIndex = null;
+            });
+            if (_selectedDay != null) {
+              _loadSlotsForDate(_selectedDay!);
+            }
+            _loadAvailableDays(_focusedDay);
+          },
         ),
         const SizedBox(height: 12),
         Text(
@@ -425,6 +588,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           ),
           _BottomBookingBar(
             price: widget.tutor.hourlyRate,
+            durationMinutes: _selectedDurationMinutes,
             onConfirm: () async {
               if (_selectedDay == null || _selectedSlotIndex == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -525,12 +689,27 @@ class _ActionButtons extends StatelessWidget {
             child: ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                backgroundColor: const Color(0xFF1F4ACC),
+                foregroundColor: Colors.white,
+                elevation: 6,
+                shadowColor: const Color(0xFF1F4ACC).withValues(alpha: 0.35),
+                minimumSize: const Size.fromHeight(58),
+                padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(18),
                 ),
               ),
-              child: const Text('Book Session'),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.bolt_rounded, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'Book Session',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -752,13 +931,20 @@ class _NotesSection extends StatelessWidget {
 
 class _BottomBookingBar extends StatelessWidget {
   final double price;
+  final int durationMinutes;
   final VoidCallback onConfirm;
 
-  const _BottomBookingBar({required this.price, required this.onConfirm});
+  const _BottomBookingBar({
+    required this.price,
+    required this.durationMinutes,
+    required this.onConfirm,
+  });
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final slotCount = durationMinutes == 120 ? 2 : 1;
+    final totalPrice = price * slotCount;
 
     return Container(
       decoration: BoxDecoration(
@@ -782,17 +968,22 @@ class _BottomBookingBar extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'Hourly Rate',
+                    'Total Price',
                     style: textTheme.bodySmall?.copyWith(
                       color: Colors.grey[600],
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '\$${price.toStringAsFixed(2)}',
+                    '\$${totalPrice.toStringAsFixed(2)}',
                     style: textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$durationMinutes min',
+                    style: textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
                   ),
                 ],
               ),

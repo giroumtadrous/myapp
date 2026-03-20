@@ -221,11 +221,28 @@ class _TutorCardState extends State<TutorCard> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF4051B5),
                           foregroundColor: Colors.white,
+                          elevation: 5,
+                          shadowColor: const Color(0xFF4051B5).withValues(alpha: 0.35),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 14,
+                          ),
+                          minimumSize: const Size(150, 52),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text('Book Session'),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.calendar_month_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text(
+                              'Book Session',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

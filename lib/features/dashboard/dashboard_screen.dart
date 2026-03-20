@@ -46,6 +46,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Center(
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 120,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   _Header(userService: _userService),
                   const SizedBox(height: 24),
                   Row(
@@ -229,6 +237,13 @@ class _UpcomingSessionsList extends StatelessWidget {
           );
         }
         final sessions = snapshot.data ?? [];
+        for (final s in sessions) {
+          debugPrint(
+            '[Dashboard][student] session=${s.id} status=${s.status} '
+            'duration=${s.durationMinutes} slotCount=${s.slotCount} '
+            'dateTime=${s.dateTime.toIso8601String()}',
+          );
+        }
         if (sessions.isEmpty) {
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
@@ -255,6 +270,7 @@ class _UpcomingSessionsList extends StatelessWidget {
                 statusLabel: s.status,
                 statusColor: _statusColor(s.status),
                 isActive: false,
+                durationMinutes: s.durationMinutes,
                 onTap: () {
                   Navigator.of(context).push(
                     AppTransitions.slideFromRight(

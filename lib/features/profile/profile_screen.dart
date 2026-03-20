@@ -20,6 +20,28 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _userService = UserService();
   final _sessionRepository = SessionRepository();
+  bool _signingOut = false;
+
+  Future<void> _signOut() async {
+    if (_signingOut) return;
+
+    setState(() => _signingOut = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (mounted) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Logout failed: $e')));
+    } finally {
+      if (mounted) {
+        setState(() => _signingOut = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,10 +77,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _ProfileContent(
                     name: name,
                     email: email,
+                    institution: appUser?.institution ?? '',
                     memberSince: appUser?.createdAt,
                     role: appUser?.role ?? 'student',
                     isLoading:
                         snapshot.connectionState == ConnectionState.waiting,
+                    isSigningOut: _signingOut,
+                    onSignOut: _signOut,
                   ),
                   const SizedBox(height: 24),
                   _PastSessionsList(
@@ -78,16 +103,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
 class _ProfileContent extends StatelessWidget {
   final String name;
   final String email;
+  final String institution;
   final DateTime? memberSince;
   final String role;
   final bool isLoading;
+  final bool isSigningOut;
+  final Future<void> Function() onSignOut;
 
   const _ProfileContent({
     required this.name,
     required this.email,
+    required this.institution,
     this.memberSince,
     this.role = 'student',
     this.isLoading = false,
+    this.isSigningOut = false,
+    required this.onSignOut,
   });
 
   String get _memberSinceFormatted {
@@ -97,11 +128,6 @@ class _ProfileContent extends StatelessWidget {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return 'Member since ${months[memberSince!.month - 1]} ${memberSince!.year}';
-  }
-
-  Future<void> _signOut(BuildContext context) async {
-    await FirebaseAuth.instance.signOut();
-    // authStateChanges() in main.dart redirects to LoginScreen
   }
 
   @override
@@ -168,21 +194,11 @@ class _ProfileContent extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.school_outlined),
                 title: const Text('Institution'),
-                subtitle: const Text('Example University'),
-                onTap: null,
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.language_outlined),
-                title: const Text('Preferred language'),
-                subtitle: const Text('English'),
-                onTap: null,
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.notifications_outlined),
-                title: const Text('Session reminders'),
-                subtitle: const Text('Push & email'),
+                subtitle: Text(
+                  institution.trim().isEmpty
+                      ? 'Not provided'
+                      : institution.trim(),
+                ),
                 onTap: null,
               ),
             ],
@@ -230,7 +246,7 @@ class _ProfileContent extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: () => _signOut(context),
+            onPressed: isSigningOut ? null : onSignOut,
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.red[700],
               side: BorderSide(color: Colors.red[300]!),
@@ -239,7 +255,13 @@ class _ProfileContent extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('Log out'),
+            child: isSigningOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Log out'),
           ),
         ),
       ],
@@ -308,6 +330,7 @@ class _PastSessionsList extends StatelessWidget {
                     statusColor: _statusColor(s.status),
                     isActive: false,
                     isPast: true,
+                    durationMinutes: s.durationMinutes,
                     onTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(

@@ -265,6 +265,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                 statusLabel: sessionStatusLabel(session.status),
                                 statusColor: sessionStatusColor(session.status),
                                 isActive: false,
+                                durationMinutes: session.durationMinutes,
                                 onTap: () {
                                   Navigator.of(context).push(
                                     AppTransitions.slideFromRight(
@@ -312,6 +313,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                             ),
                                             sessionDateTime: session.dateTime,
                                             amount: session.amount,
+                                            durationMinutes:
+                                                session.durationMinutes,
+                                            slotCount: session.slotCount,
+                                            reservedSlots:
+                                                session.reservedSlots.isNotEmpty
+                                                ? session.reservedSlots
+                                                : <String>[
+                                                    DateFormat(
+                                                      'HH:mm',
+                                                    ).format(session.dateTime),
+                                                  ],
                                           ),
                                         ),
                                       );

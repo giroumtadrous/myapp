@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../features/auth/login_screen.dart';
 import '../../repositories/tutor_auth_repository.dart';
+import '../../services/notification_service.dart';
+import '../../services/user_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
 
@@ -60,7 +62,18 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      await _tutorAuthRepository.signInTutor(email: email, password: password);
+      final user = await _tutorAuthRepository.signInTutor(
+        email: email,
+        password: password,
+      );
+
+      // Update FCM token for the logged-in tutor
+      final userService = UserService();
+      await userService.updateFCMToken(user.uid);
+
+      // Initialize notification service
+      await NotificationService.instance.initialize();
+
       if (mounted) {
         // Return to root auth wrapper so authStateChanges can render tutor dashboard.
         Navigator.of(context).popUntil((route) => route.isFirst);
