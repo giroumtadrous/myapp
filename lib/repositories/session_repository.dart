@@ -170,6 +170,19 @@ class SessionRepository {
         });
   }
 
+  Stream<List<SessionModel>> allStudentSessions(String studentId) {
+    final normalizedStudentId = studentId.trim();
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('student-all', snap);
+      final filtered = snap.docs
+          .map((d) => SessionModel.fromFirestore(d))
+          .where((s) => s.studentId.trim() == normalizedStudentId)
+          .toList()
+        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      return _enrichWithTutorNames(filtered);
+    });
+  }
+
   // ── Cancel a session by updating status (keeps historical data) ───────────
   Future<void> cancelSession(String sessionId) async {
     await _firestore.collection('sessions').doc(sessionId).update({
@@ -283,6 +296,26 @@ class SessionRepository {
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
           return _enrichWithStudentNames(filtered);
         });
+  }
+
+  Stream<List<SessionModel>> tutorSessionsOnDate(
+    String tutorId,
+    DateTime date,
+  ) {
+    final normalizedTutorId = tutorId.trim();
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('tutor-day', snap);
+      final filtered = snap.docs
+          .map((d) => SessionModel.fromFirestore(d))
+          .where((s) => s.tutorId.trim() == normalizedTutorId)
+          .where((s) => !s.dateTime.isBefore(dayStart) && s.dateTime.isBefore(dayEnd))
+          .toList()
+        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      return _enrichWithStudentNames(filtered);
+    });
   }
 
   Future<SessionParticipant> _tutorParticipant(String tutorId) async {

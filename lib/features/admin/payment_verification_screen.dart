@@ -67,7 +67,7 @@ class _PaymentVerificationScreenState extends State<PaymentVerificationScreen> {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: payments.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final payment = payments[index];
                 return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(

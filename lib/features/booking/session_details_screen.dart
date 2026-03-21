@@ -181,7 +181,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.12),
+                            color: statusColor.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -345,40 +345,42 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                 ),
                 child: Column(
                   children: [
-                    if (canJoin)
-                      SizedBox(
-                        width: double.infinity,
-                        child: PressableScale(
-                          child: FilledButton.icon(
-                            onPressed: _isJoining
-                                ? null
-                                : () => _joinSession(session),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF4051B5),
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            icon: _isJoining
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.videocam_outlined),
-                            label: Text(_isJoining ? 'Joining...' : 'Join Session'),
+                    SizedBox(
+                      width: double.infinity,
+                      child: PressableScale(
+                        child: FilledButton.icon(
+                          onPressed: (canJoin && !_isJoining)
+                              ? () => _joinSession(session)
+                              : null,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF4051B5),
+                            minimumSize: const Size.fromHeight(52),
                           ),
+                          icon: _isJoining
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.videocam_outlined),
+                          label: Text(_isJoining ? 'Joining...' : 'Join Session'),
                         ),
-                      )
-                    else
+                      ),
+                    ),
+                    if (!canJoin) ...[
+                      const SizedBox(height: 8),
                       Text(
-                        'Join button appears when the session is approved and close to start time.',
+                        'Join is enabled when session status is approved and within 15 minutes before start until session end.',
                         style: Theme.of(context)
                             .textTheme
                             .bodySmall
                             ?.copyWith(color: Colors.grey[600]),
+                        textAlign: TextAlign.center,
                       ),
+                    ],
                     const SizedBox(height: 8),
                     if (canCancel)
                       SizedBox(

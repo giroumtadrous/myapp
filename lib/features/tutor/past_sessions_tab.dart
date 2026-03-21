@@ -100,7 +100,7 @@ class _PastSessionTile extends StatelessWidget {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: sessionStatusColor(session.status).withOpacity(0.1),
+                    color: sessionStatusColor(session.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(99),
                   ),
                   child: Text(

@@ -15,6 +15,7 @@ import '../../widgets/fade_in_stagger.dart';
 import '../../widgets/session_card.dart';
 import 'manual_payment_screen.dart';
 import 'session_details_screen.dart';
+import 'sessions_calendar_screen.dart';
 
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({super.key});
@@ -28,13 +29,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
   final PaymentRepository _paymentRepository = PaymentRepository();
   String _selectedFilter = 'All';
 
-  final List<String> _filters = const ['All', 'Pending', 'Approved', 'Completed'];
+  final List<String> _filters = const [
+    'All',
+    'Pending',
+    'Approved',
+    'Completed',
+    'Cancelled',
+  ];
 
   String _sessionFilterLabel(SessionModel session) {
     final raw = session.status.toLowerCase();
     if (raw == 'pending' || raw.contains('pending')) return 'Pending';
     if (raw == 'approved' || raw == 'confirmed') return 'Approved';
     if (raw == 'completed') return 'Completed';
+    if (raw == 'cancelled') return 'Cancelled';
     return 'All';
   }
 
@@ -75,7 +83,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
         title: const Text('My Sessions'),
         actions: [
           IconButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.of(context).push(
+                AppTransitions.fade(page: const SessionsCalendarScreen()),
+              );
+            },
             icon: const Icon(Icons.calendar_month),
           ),
         ],
@@ -198,7 +210,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               const SizedBox(height: 10),
               Expanded(
                 child: StreamBuilder<List<SessionModel>>(
-                  stream: _sessionRepository.upcomingSessions(user.uid),
+                  stream: _sessionRepository.allStudentSessions(user.uid),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const AppLoadingIndicator(
@@ -218,7 +230,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     if (sessions.isEmpty) {
                       return Center(
                         child: Text(
-                          'No upcoming sessions yet.',
+                          'No sessions yet.',
                           style: textTheme.bodyMedium?.copyWith(
                             color: Colors.grey[600],
                           ),
@@ -247,6 +259,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                         final canJoin = _sessionRepository.canJoinSession(
                           session,
                         );
+                        final isPast = session.dateTime.isBefore(DateTime.now());
 
                         return FadeInStagger(
                           index: index,
@@ -259,12 +272,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                 date: DateFormat.yMMMd().format(
                                   session.dateTime,
                                 ),
+                                sessionDateTime: session.dateTime,
                                 timeRange: DateFormat.jm().format(
                                   session.dateTime,
                                 ),
                                 statusLabel: sessionStatusLabel(session.status),
                                 statusColor: sessionStatusColor(session.status),
                                 isActive: false,
+                                isPast: isPast,
                                 durationMinutes: session.durationMinutes,
                                 onTap: () {
                                   Navigator.of(context).push(

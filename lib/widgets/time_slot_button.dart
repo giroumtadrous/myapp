@@ -18,7 +18,7 @@ class TimeSlotButton extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final backgroundColor =
-        isSelected ? colorScheme.primary.withOpacity(0.12) : Colors.white;
+        isSelected ? colorScheme.primary.withValues(alpha: 0.12) : Colors.white;
     final borderColor = isSelected ? colorScheme.primary : Colors.grey.shade300;
     final textColor = isSelected ? colorScheme.primary : Colors.grey[800];
 

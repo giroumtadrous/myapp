@@ -31,34 +31,37 @@ class _AppLoadingIndicatorState extends State<AppLoadingIndicator>
 
   @override
   Widget build(BuildContext context) {
-    final color = Theme.of(context).colorScheme.primary;
+    final base = const Color(0xFFE2E8F0);
+    final highlight = const Color(0xFFF8FAFC);
 
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           SizedBox(
-            width: 54,
+            width: 240,
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                final wave = math.sin(_controller.value * math.pi * 2);
+                final slide = (wave * 0.5) + 0.5;
+
+                return Column(
                   children: List.generate(3, (index) {
-                    final phase = (_controller.value - index * 0.16).clamp(
-                      0.0,
-                      1.0,
-                    );
-                    final t = math.sin(phase * math.pi).abs();
-                    final scale = 0.7 + (t * 0.5);
-                    return Transform.scale(
-                      scale: scale,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: color.withOpacity(0.5 + (t * 0.5)),
-                          shape: BoxShape.circle,
+                    final height = index == 0 ? 18.0 : 12.0;
+                    final widthFactor = index == 0 ? 1.0 : (index == 1 ? 0.78 : 0.62);
+
+                    return Container(
+                      margin: EdgeInsets.only(bottom: index == 2 ? 0 : 10),
+                      height: height,
+                      width: 240 * widthFactor,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        gradient: LinearGradient(
+                          begin: Alignment(-1.0 + (slide * 2), 0),
+                          end: Alignment(1.0 + (slide * 2), 0),
+                          colors: [base, highlight, base],
+                          stops: const [0.2, 0.5, 0.8],
                         ),
                       ),
                     );

@@ -16,6 +16,7 @@ class PaymentRepository {
     'booked',
     'pending',
     'confirmed',
+    'approved',
   ];
 
   static const String _roomAlphabet =
@@ -69,6 +70,13 @@ class PaymentRepository {
           .where('status', whereIn: blockingStatuses)
           .get();
 
+        final studentOverlapping = await _firestore
+          .collection('sessions')
+          .where('studentId', isEqualTo: studentId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
       for (final doc in overlapping.docs) {
         final data = doc.data();
         final existingReservedRaw = data['reservedSlots'];
@@ -78,6 +86,20 @@ class PaymentRepository {
 
         if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
           throw Exception('This time slot is no longer available.');
+        }
+      }
+
+      for (final doc in studentOverlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception(
+            'You already have another session at this time. Please choose a different slot.',
+          );
         }
       }
 

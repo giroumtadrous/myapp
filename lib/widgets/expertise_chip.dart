@@ -16,7 +16,7 @@ class ExpertiseChip extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final backgroundColor =
-        isSelected ? colorScheme.primary.withOpacity(0.12) : Colors.grey[100];
+        isSelected ? colorScheme.primary.withValues(alpha: 0.12) : Colors.grey[100];
     final textColor = isSelected ? colorScheme.primary : Colors.grey[800];
 
     return Container(

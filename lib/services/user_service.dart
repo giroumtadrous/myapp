@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +12,7 @@ class UserService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  StreamSubscription<String>? _tokenRefreshSub;
 
   /// Fetches the user profile for the given [uid].
   /// Returns [AppUser] if the document exists, null otherwise.
@@ -63,7 +66,9 @@ class UserService {
         'role': role,
         'institution': institution,
         'fcmToken': fcmToken,
-        'fcmTokens': FieldValue.arrayUnion([if (fcmToken != null) fcmToken]),
+        'fcmTokens': FieldValue.arrayUnion(
+          fcmToken != null ? <String>[fcmToken] : <String>[],
+        ),
         'fcmPlatform': defaultTargetPlatform.name,
         'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -97,32 +102,50 @@ class UserService {
 
   /// Updates FCM token for an existing user.
   Future<void> updateFCMToken(String uid) async {
+    await syncFcmToken(uid);
+  }
+
+  /// Syncs current FCM token to Firestore and keeps it updated on refresh.
+  Future<void> syncFcmToken(String userId) async {
     try {
-      final fcmToken = await _getFCMToken();
-      
-      if (fcmToken == null || fcmToken.isEmpty) {
-        debugPrint('[UserService] FCM token is empty, skipping update for $uid');
-        return;
+      final token = await _messaging.getToken();
+      if (token == null || token.trim().isEmpty) {
+        debugPrint('[FCM] Token is null/empty for user $userId');
+      } else {
+        await _firestore.collection(_usersCollection).doc(userId).set({
+          'fcmToken': token,
+          'fcmTokens': FieldValue.arrayUnion([token]),
+          'fcmPlatform': defaultTargetPlatform.name,
+          'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        debugPrint('[FCM] Token synced for user $userId (${token.substring(0, 20)}...)');
       }
 
-      debugPrint('[UserService] Updating FCM token for $uid: ${fcmToken.substring(0, 20)}...');
+      _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = _messaging.onTokenRefresh.listen((refreshedToken) async {
+        if (refreshedToken.trim().isEmpty) {
+          debugPrint('[FCM] Refreshed token is empty for user $userId');
+          return;
+        }
 
-      await _firestore
-          .collection(_usersCollection)
-          .doc(uid)
-          .set({
-        'fcmToken': fcmToken,
-        'fcmTokens': FieldValue.arrayUnion([fcmToken]),
-        'fcmPlatform': defaultTargetPlatform.name,
-        'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      debugPrint('[UserService] FCM token updated successfully for $uid');
+        try {
+          await _firestore.collection(_usersCollection).doc(userId).set({
+            'fcmToken': refreshedToken,
+            'fcmTokens': FieldValue.arrayUnion([refreshedToken]),
+            'fcmPlatform': defaultTargetPlatform.name,
+            'fcmTokenUpdatedAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          debugPrint('[FCM] Refreshed token synced for user $userId');
+        } catch (e, st) {
+          debugPrint('[FCM] Failed to sync refreshed token for $userId: $e');
+          debugPrint(st.toString());
+        }
+      });
     } catch (e, st) {
-      debugPrint('[UserService] Error updating FCM token: $e');
+      debugPrint('[FCM] Failed to sync token for $userId: $e');
       debugPrint(st.toString());
-      rethrow;
     }
   }
 

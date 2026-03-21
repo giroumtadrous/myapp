@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 
@@ -31,6 +32,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
     'confirmed',
     'booked',
     'pending_payment_verification',
+    'approved',
   ];
 
   int _selectedSubjectIndex = 0;
@@ -112,15 +114,34 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           .where('status', whereIn: _blockingStatuses)
           .get();
 
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      QuerySnapshot<Map<String, dynamic>>? studentQs;
+      if (currentUserId != null) {
+        studentQs = await FirebaseFirestore.instance
+            .collection('sessions')
+            .where('studentId', isEqualTo: currentUserId)
+            .where('status', whereIn: _blockingStatuses)
+            .get();
+      }
+
       final available = <DateTime>{};
       DateTime cursor = firstDay;
       while (!cursor.isAfter(lastDay)) {
         final slots = _generateSlotsForDay(cursor, weekly);
         final dateStr = DateFormat('yyyy-MM-dd').format(cursor);
-        final bookedForDate = qs.docs.where(
+        final tutorBookedForDate = qs.docs.where(
           (doc) => doc.data()['date']?.toString() == dateStr,
         );
-        final occupied = _occupiedSlotsForDate(slots, bookedForDate.toList());
+        final studentBookedForDate =
+            (studentQs?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                .where((doc) => doc.data()['date']?.toString() == dateStr);
+        final occupied = _occupiedSlotsForDate(
+          slots,
+          [
+            ...tutorBookedForDate,
+            ...studentBookedForDate,
+          ],
+        );
         final hasFree =
             _availableStartSlots(slots, occupied, _requiredSlotCount())
                 .isNotEmpty;
@@ -248,7 +269,7 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
         if (occupied.contains(slotToCheck)) {
           allFree = false;
           debugPrint(
-            '[Slots] For ${requiredSlots}-slot booking at index $i: '
+            '[Slots] For $requiredSlots-slot booking at index $i: '
             'offset $offset (slot $slotToCheck) is occupied',
           );
           break;
@@ -327,7 +348,24 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
           .where('status', whereIn: _blockingStatuses)
           .get();
 
-      final occupied = _occupiedSlotsForDate(slots, querySnapshot.docs);
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      QuerySnapshot<Map<String, dynamic>>? studentQuerySnapshot;
+      if (currentUserId != null) {
+        studentQuerySnapshot = await FirebaseFirestore.instance
+            .collection('sessions')
+            .where('studentId', isEqualTo: currentUserId)
+            .where('date', isEqualTo: dateStr)
+            .where('status', whereIn: _blockingStatuses)
+            .get();
+      }
+
+      final occupied = _occupiedSlotsForDate(
+        slots,
+        [
+          ...querySnapshot.docs,
+          ...?studentQuerySnapshot?.docs,
+        ],
+      );
       final available = _availableStartSlots(
         slots,
         occupied,
@@ -630,7 +668,7 @@ class _TutorHeader extends StatelessWidget {
             tag: tutorAvatarHeroTag(tutor.id),
             child: CircleAvatar(
               radius: 48,
-              backgroundColor: theme.colorScheme.primary.withOpacity(0.1),
+              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
               child: Icon(
                 Icons.person,
                 size: 56,
@@ -725,7 +763,7 @@ class _ActionButtons extends StatelessWidget {
                 ),
                 backgroundColor: Theme.of(
                   context,
-                ).colorScheme.primary.withOpacity(0.06),
+                ).colorScheme.primary.withValues(alpha: 0.06),
               ),
               child: const Text('Message'),
             ),
@@ -782,7 +820,7 @@ class _PriceSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -951,7 +989,7 @@ class _BottomBookingBar extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, -4),
           ),

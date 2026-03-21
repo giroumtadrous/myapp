@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
 import '../../models/tutor_model.dart';
+import '../../repositories/payment_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
 import '../../services/jitsi_meet_service.dart';
@@ -17,6 +18,7 @@ import '../../widgets/tutor_card.dart';
 import '../booking/session_details_screen.dart';
 import '../booking/tutor_booking_screen.dart';
 import '../explore/explore_screen.dart';
+import '../notifications/notifications_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -29,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _userService = UserService();
   final _tutorsRepository = TutorsRepository();
   final _sessionRepository = SessionRepository();
+  final _paymentRepository = PaymentRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +57,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _Header(userService: _userService),
+                  _Header(
+                    userService: _userService,
+                    paymentRepository: _paymentRepository,
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -266,6 +272,7 @@ class _UpcomingSessionsList extends StatelessWidget {
                 tutorName: s.tutorName ?? s.tutorId,
                 subject: s.subject,
                 date: dateStr,
+                sessionDateTime: s.dateTime,
                 timeRange: timeStr,
                 statusLabel: s.status,
                 statusColor: _statusColor(s.status),
@@ -382,8 +389,9 @@ class _TutorsEmptyState extends StatelessWidget {
 
 class _Header extends StatelessWidget {
   final UserService userService;
+  final PaymentRepository paymentRepository;
 
-  const _Header({required this.userService});
+  const _Header({required this.userService, required this.paymentRepository});
 
   @override
   Widget build(BuildContext context) {
@@ -446,18 +454,98 @@ class _Header extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.grey[100],
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.notifications_none_rounded),
-            ),
-          ),
+          _NotificationBell(paymentRepository: paymentRepository),
         ],
       ),
+    );
+  }
+}
+
+class _NotificationBell extends StatelessWidget {
+  final PaymentRepository paymentRepository;
+
+  const _NotificationBell({required this.paymentRepository});
+
+  @override
+  Widget build(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return _NotificationBellButton(
+        unreadCount: 0,
+        onPressed: () {
+          Navigator.of(context).push(
+            AppTransitions.slideFromRight(page: const NotificationsScreen()),
+          );
+        },
+      );
+    }
+
+    return StreamBuilder(
+      stream: paymentRepository.userNotifications(user.uid),
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        final unreadCount = docs.where((doc) => doc.data()['read'] != true).length;
+
+        return _NotificationBellButton(
+          unreadCount: unreadCount,
+          onPressed: () {
+            Navigator.of(context).push(
+              AppTransitions.slideFromRight(page: const NotificationsScreen()),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _NotificationBellButton extends StatelessWidget {
+  final int unreadCount;
+  final VoidCallback onPressed;
+
+  const _NotificationBellButton({
+    required this.unreadCount,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: IconButton(
+            onPressed: onPressed,
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
+        ),
+        if (unreadCount > 0)
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444),
+                borderRadius: BorderRadius.circular(99),
+              ),
+              constraints: const BoxConstraints(minWidth: 18),
+              child: Text(
+                unreadCount > 99 ? '99+' : '$unreadCount',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

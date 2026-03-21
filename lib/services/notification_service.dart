@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
 
@@ -49,6 +50,18 @@ class NotificationService {
   bool _initialized = false;
   bool _localNotificationsInitialized = false;
 
+  String _mutePreferenceKey(String uid) => 'notifications_muted_$uid';
+
+  Future<bool> isMutedForUser(String uid) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_mutePreferenceKey(uid)) ?? false;
+  }
+
+  Future<void> setMutedForUser({required String uid, required bool muted}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_mutePreferenceKey(uid), muted);
+  }
+
   bool get _supportsMessaging {
     if (kIsWeb) return true;
 
@@ -75,6 +88,7 @@ class NotificationService {
     _initialized = true;
 
     try {
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
       await _initializeLocalNotifications();
       await _requestPermissions();
       await _configureForegroundPresentation();
@@ -273,6 +287,15 @@ class NotificationService {
 
   Future<void> _showForegroundNotification(RemoteMessage message) async {
     if (!_localNotificationsInitialized) return;
+
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      final muted = await isMutedForUser(uid);
+      if (muted) {
+        debugPrint('[FCM] Foreground notification suppressed because alerts are muted.');
+        return;
+      }
+    }
 
     final title = message.notification?.title;
     final body = message.notification?.body;

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/tutor_model.dart';
@@ -20,6 +21,14 @@ class BookingScreen extends StatefulWidget {
 }
 
 class _BookingScreenState extends State<BookingScreen> {
+  static const List<String> _blockingStatuses = <String>[
+    'pending',
+    'confirmed',
+    'booked',
+    'pending_payment_verification',
+    'approved',
+  ];
+
   DateTime _selectedDate = DateTime.now();
   String? _selectedTime;
   int _selectedDurationMinutes = 60;
@@ -106,10 +115,27 @@ class _BookingScreenState extends State<BookingScreen> {
           .collection('sessions')
           .where('tutorId', isEqualTo: widget.tutor.id)
           .where('date', isEqualTo: dateStr)
+          .where('status', whereIn: _blockingStatuses)
           .get();
 
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+      QuerySnapshot<Map<String, dynamic>>? studentBookingsSnap;
+      if (currentUserId != null) {
+        studentBookingsSnap = await FirebaseFirestore.instance
+            .collection('sessions')
+            .where('studentId', isEqualTo: currentUserId)
+            .where('date', isEqualTo: dateStr)
+            .where('status', whereIn: _blockingStatuses)
+          .get();
+      }
+
       final bookedSlots = <String>{};
-      for (final doc in bookingsSnap.docs) {
+      final combinedDocs = <QueryDocumentSnapshot<Map<String, dynamic>>>[
+        ...bookingsSnap.docs,
+        ...?studentBookingsSnap?.docs,
+      ];
+
+      for (final doc in combinedDocs) {
         final data = doc.data();
         final reservedRaw = data['reservedSlots'];
         if (reservedRaw is List && reservedRaw.isNotEmpty) {
@@ -197,7 +223,7 @@ class _BookingScreenState extends State<BookingScreen> {
                         radius: 24,
                         backgroundColor: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.08),
+                        ).colorScheme.primary.withValues(alpha: 0.08),
                         child: Icon(
                           Icons.person,
                           color: Theme.of(context).colorScheme.primary,

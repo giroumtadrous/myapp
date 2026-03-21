@@ -92,6 +92,27 @@ async function sendPush({token, title, body, data}) {
   });
 }
 
+async function sendSingleTokenPush({token, title, body, data}) {
+  return admin.messaging().send({
+    token,
+    notification: {
+      title,
+      body,
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "session_notifications",
+        sound: "default",
+      },
+    },
+    data: Object.entries(data || {}).reduce((acc, [key, value]) => {
+      acc[key] = value == null ? "" : String(value);
+      return acc;
+    }, {}),
+  });
+}
+
 async function notifyUser({userId, title, body, data, context}) {
   if (!userId) {
     logger.warn("Missing recipient userId", {context});
@@ -160,15 +181,26 @@ exports.notifyPaymentStatusChanged = onDocumentUpdated(
       return;
     }
 
-    const body =
-      newStatus === "approved"
-        ? "Your payment has been approved. Your session is now confirmed."
-        : "Your payment was rejected. Please update payment and try again.";
+    const title = newStatus === "approved" ? "Payment Approved ✅" : "Payment Rejected ❌";
+    const body = newStatus === "approved"
+      ? "Great news! Your payment was approved and your session is now confirmed."
+      : "Your payment was rejected. Please check your payment details and try again.";
 
     try {
-      await notifyUser({
-        userId: studentId,
-        title: "Payment Update",
+      const userSnap = await admin.firestore().collection("users").doc(studentId).get();
+      const token = String(userSnap.get("fcmToken") || "").trim();
+
+      if (!token) {
+        logger.warn("No fcmToken found for student. Skipping push.", {
+          paymentId: event.params.paymentId,
+          studentId,
+        });
+        return;
+      }
+
+      await sendSingleTokenPush({
+        token,
+        title,
         body,
         data: {
           type: "payment_status",
@@ -176,9 +208,9 @@ exports.notifyPaymentStatusChanged = onDocumentUpdated(
           status: newStatus,
           sessionId: String(after.sessionId || ""),
         },
-        context: "notifyPaymentStatusChanged",
       });
-      logger.info("Payment status notification sent successfully", {
+
+      logger.info("Payment status push sent", {
         paymentId: event.params.paymentId,
         studentId,
         status: newStatus,
@@ -192,6 +224,99 @@ exports.notifyPaymentStatusChanged = onDocumentUpdated(
     }
   },
 );
+
+async function sendSessionReminderIfDue(sessionId, sessionData) {
+  const studentId = String(sessionData.studentId || "").trim();
+  if (!studentId) {
+    logger.warn("Missing studentId for reminder", {sessionId});
+    return;
+  }
+
+  const dateTimeRaw = sessionData.dateTime;
+  const reminderSentAt = sessionData.reminderSentAt;
+  if (reminderSentAt) {
+    logger.info("Reminder already sent, skipping", {sessionId});
+    return;
+  }
+
+  let sessionDate;
+  if (dateTimeRaw && typeof dateTimeRaw.toDate === "function") {
+    sessionDate = dateTimeRaw.toDate();
+  } else if (typeof dateTimeRaw === "string") {
+    sessionDate = new Date(dateTimeRaw);
+  }
+
+  if (!(sessionDate instanceof Date) || Number.isNaN(sessionDate.getTime())) {
+    logger.warn("Invalid session dateTime for reminder", {sessionId, dateTimeRaw});
+    return;
+  }
+
+  const now = new Date();
+  const millisUntilStart = sessionDate.getTime() - now.getTime();
+  const oneHourMillis = 60 * 60 * 1000;
+  const triggerWindowMillis = 5 * 60 * 1000;
+
+  if (millisUntilStart > oneHourMillis || millisUntilStart < (oneHourMillis - triggerWindowMillis)) {
+    logger.info("Session not in reminder window", {
+      sessionId,
+      millisUntilStart,
+    });
+    return;
+  }
+
+  try {
+    const userSnap = await admin.firestore().collection("users").doc(studentId).get();
+    const token = String(userSnap.get("fcmToken") || "").trim();
+    if (!token) {
+      logger.warn("No fcmToken found for session reminder", {sessionId, studentId});
+      return;
+    }
+
+    await sendSingleTokenPush({
+      token,
+      title: "Session Reminder ⏰",
+      body: "Your tutoring session starts in 1 hour. Get ready!",
+      data: {
+        type: "session_reminder",
+        sessionId,
+      },
+    });
+
+    await admin.firestore().collection("sessions").doc(sessionId).set({
+      reminderSentAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, {merge: true});
+
+    logger.info("Session reminder sent", {sessionId, studentId});
+  } catch (error) {
+    logger.error("Failed to send session reminder", {sessionId, error});
+  }
+}
+
+exports.onSessionReminder = onDocumentUpdated("sessions/{sessionId}", async (event) => {
+  const before = event.data?.before?.data() || {};
+  const after = event.data?.after?.data() || {};
+
+  const oldDate = before.dateTime && typeof before.dateTime.toDate === "function"
+    ? before.dateTime.toDate().toISOString()
+    : String(before.dateTime || "");
+  const newDate = after.dateTime && typeof after.dateTime.toDate === "function"
+    ? after.dateTime.toDate().toISOString()
+    : String(after.dateTime || "");
+
+  const oldReminderSent = Boolean(before.reminderSentAt);
+  const newReminderSent = Boolean(after.reminderSentAt);
+
+  if (oldDate === newDate && oldReminderSent === newReminderSent) {
+    return;
+  }
+
+  await sendSessionReminderIfDue(event.params.sessionId, after);
+});
+
+exports.onSessionReminderCreated = onDocumentCreated("sessions/{sessionId}", async (event) => {
+  const data = event.data?.data() || {};
+  await sendSessionReminderIfDue(event.params.sessionId, data);
+});
 
 exports.notifySessionCreated = onDocumentCreated(
   "sessions/{sessionId}",

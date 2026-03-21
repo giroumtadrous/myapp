@@ -146,7 +146,7 @@ class _ProfileContent extends StatelessWidget {
           CircleAvatar(
             radius: 44,
             backgroundColor:
-                Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
             child: Icon(
               Icons.person,
               size: 48,
@@ -325,6 +325,7 @@ class _PastSessionsList extends StatelessWidget {
                     tutorName: s.tutorName ?? s.tutorId,
                     subject: s.subject,
                     date: dateStr,
+                    sessionDateTime: s.dateTime,
                     timeRange: timeStr,
                     statusLabel: s.status,
                     statusColor: _statusColor(s.status),

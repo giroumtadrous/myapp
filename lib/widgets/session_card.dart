@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import 'pressable_scale.dart';
 
@@ -6,6 +7,7 @@ class SessionCard extends StatefulWidget {
   final String tutorName;
   final String subject;
   final String date;
+  final DateTime? sessionDateTime;
   final String timeRange;
   final String statusLabel;
   final Color statusColor;
@@ -21,6 +23,7 @@ class SessionCard extends StatefulWidget {
     required this.tutorName,
     required this.subject,
     required this.date,
+    this.sessionDateTime,
     required this.timeRange,
     required this.statusLabel,
     required this.statusColor,
@@ -42,6 +45,7 @@ class _SessionCardState extends State<SessionCard> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final hasJoinAction = widget.onJoinMeet != null;
     final hasCancelAction = widget.onCancel != null;
     final personLabel = widget.tutorName.contains(':')
@@ -51,6 +55,13 @@ class _SessionCardState extends State<SessionCard> {
     final isLongSession = duration >= 120;
     final lift = _pressed ? -1.0 : (_hovered ? -4.0 : 0.0);
     final elevation = _pressed ? 1.0 : (_hovered ? 5.0 : 2.0);
+    final parsedDate = widget.sessionDateTime ?? _parseDisplayDate(widget.date);
+    final day = parsedDate != null ? DateFormat('d').format(parsedDate) : '--';
+    final month = parsedDate != null
+      ? DateFormat('MMM').format(parsedDate).toUpperCase()
+      : DateFormat('MMM').format(DateTime.now()).toUpperCase();
+    final prettyDate = parsedDate != null ? DateFormat.yMMMd().format(parsedDate) : widget.date;
+    final primaryColor = theme.colorScheme.primary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -65,21 +76,28 @@ class _SessionCardState extends State<SessionCard> {
         builder: (context, value, child) {
           return Transform.translate(offset: Offset(0, value), child: child);
         },
-        child: Card(
-          elevation: elevation,
-          margin: const EdgeInsets.only(bottom: 14),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 16 + elevation,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(18),
             onTap: widget.onTap,
             onTapDown: (_) => setState(() => _pressed = true),
             onTapCancel: () => setState(() => _pressed = false),
             onTapUp: (_) => setState(() => _pressed = false),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(18),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -87,12 +105,71 @@ class _SessionCardState extends State<SessionCard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
+                        width: 52,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: primaryColor,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              day,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              month,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.7,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                widget.timeRange,
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                prettyDate,
+                                style: const TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: widget.statusColor.withOpacity(0.12),
+                          color: widget.statusColor.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -105,18 +182,9 @@ class _SessionCardState extends State<SessionCard> {
                           ),
                         ),
                       ),
-                      const Spacer(),
-                      Text(
-                        '${widget.date} • ${widget.timeRange}',
-                        style: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
                     widget.subject,
                     style: const TextStyle(
@@ -236,5 +304,25 @@ class _SessionCardState extends State<SessionCard> {
         ),
       ),
     );
+  }
+
+  DateTime? _parseDisplayDate(String value) {
+    final direct = DateTime.tryParse(value);
+    if (direct != null) return direct;
+
+    final formats = <DateFormat>[
+      DateFormat.yMMMd(),
+      DateFormat('MMM d, y'),
+      DateFormat('d MMM y'),
+      DateFormat('yyyy-MM-dd'),
+    ];
+
+    for (final format in formats) {
+      try {
+        return format.parseStrict(value);
+      } catch (_) {}
+    }
+
+    return null;
   }
 }

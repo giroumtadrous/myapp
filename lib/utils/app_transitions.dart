@@ -7,10 +7,10 @@ class AppTransitions {
     Curve curve = Curves.easeOutCubic,
   }) {
     return PageRouteBuilder<T>(
-      pageBuilder: (_, animation, __) => page,
+      pageBuilder: (context, animation, secondaryAnimation) => page,
       transitionDuration: duration,
       reverseTransitionDuration: const Duration(milliseconds: 220),
-      transitionsBuilder: (_, animation, __, child) {
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(parent: animation, curve: curve);
         return FadeTransition(opacity: curved, child: child);
       },
@@ -24,10 +24,10 @@ class AppTransitions {
     Curve curve = Curves.easeOutCubic,
   }) {
     return PageRouteBuilder<T>(
-      pageBuilder: (_, animation, __) => page,
+      pageBuilder: (context, animation, secondaryAnimation) => page,
       transitionDuration: duration,
       reverseTransitionDuration: const Duration(milliseconds: 240),
-      transitionsBuilder: (_, animation, __, child) {
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
         final curved = CurvedAnimation(parent: animation, curve: curve);
         return SlideTransition(
           position: Tween<Offset>(

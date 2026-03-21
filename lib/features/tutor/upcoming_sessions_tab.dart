@@ -255,7 +255,7 @@ class _UpcomingSessionTile extends StatelessWidget {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: sessionStatusColor(session.status).withOpacity(0.12),
+                      color: sessionStatusColor(session.status).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(99),
                     ),
                     child: Text(

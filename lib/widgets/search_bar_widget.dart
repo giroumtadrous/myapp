@@ -26,7 +26,7 @@ class SearchBarWidget extends StatelessWidget {
               border: Border.all(color: const Color(0xFFE2E8F0)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.03),
+                  color: Colors.black.withValues(alpha: 0.03),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -54,7 +54,7 @@ class SearchBarWidget extends StatelessWidget {
           Material(
             color: const Color(0xFF4051B5),
             elevation: 4,
-            shadowColor: Colors.black.withOpacity(0.12),
+            shadowColor: Colors.black.withValues(alpha: 0.12),
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),

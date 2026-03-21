@@ -142,7 +142,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                             children: [
                               CircleAvatar(
                                 radius: 60,
-                                backgroundColor: colorScheme.primary.withOpacity(0.12),
+                                backgroundColor: colorScheme.primary.withValues(alpha: 0.12),
                                 child: Icon(
                                   Icons.person,
                                   size: 64,
@@ -250,7 +250,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                             ),
                             filled: true,
                             fillColor: colorScheme.surfaceContainerHighest
-                                .withOpacity(0.3),
+                                .withValues(alpha: 0.3),
                             counterStyle:
                                 textTheme.bodySmall?.copyWith(color: Colors.grey),
                           ),
