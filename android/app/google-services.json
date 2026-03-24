@@ -31,10 +31,10 @@
               "client_type": 3
             },
             {
-              "client_id": "347635239568-a6unfsjobj81i7ermo8rg62na9ug721k.apps.googleusercontent.com",
+              "client_id": "347635239568-38gpsi90hsirdpdn8eg2bptmvtiamklp.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.littleFlowerApp"
+                "bundle_id": "com.example.myapp"
               }
             }
           ]
@@ -49,6 +49,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "347635239568-8j4num5qp5rvt4m6uu1jtop3d2j0s7gv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myapp",
+            "certificate_hash": "c9bf488c911d0c9218828e13529e67485350c424"
+          }
+        },
         {
           "client_id": "347635239568-9gltcnskqbqfjanch12k2f68obcq433n.apps.googleusercontent.com",
           "client_type": 3
@@ -67,10 +75,10 @@
               "client_type": 3
             },
             {
-              "client_id": "347635239568-a6unfsjobj81i7ermo8rg62na9ug721k.apps.googleusercontent.com",
+              "client_id": "347635239568-38gpsi90hsirdpdn8eg2bptmvtiamklp.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.littleFlowerApp"
+                "bundle_id": "com.example.myapp"
               }
             }
           ]

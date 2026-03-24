@@ -1,9 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
+import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
+import 'complete_profile_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,18 +18,23 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _institutionController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+  final _userService = UserService();
 
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   static const int _minPasswordLength = 6;
 
   @override
   void dispose() {
     _nameController.dispose();
+    _usernameController.dispose();
     _institutionController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -35,6 +44,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String? _validateInputs() {
     final name = _nameController.text.trim();
+    final username = _usernameController.text.trim();
     final institution = _institutionController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -42,6 +52,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (name.isEmpty) {
       return 'Please enter your full name.';
+    }
+    if (username.isEmpty) {
+      return 'Please enter a username.';
+    }
+    if (username.length < 3) {
+      return 'Username must be at least 3 characters.';
+    }
+    if (username.contains(' ')) {
+      return 'Username cannot contain spaces.';
     }
     if (email.isEmpty) {
       return 'Please enter your email.';
@@ -74,6 +93,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final name = _nameController.text.trim();
+    final username = _usernameController.text.trim();
     final institution = _institutionController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -89,15 +109,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       await user.updateDisplayName(name);
 
-      // Save user to Firestore with FCM token
-      final userService = UserService();
-      await userService.saveUserWithFCM(
-        uid: user.uid,
-        name: name,
-        email: email,
-        role: 'student',
-        institution: institution,
-      );
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+        'uid': user.uid,
+        'username': username,
+        'name': name,
+        'institution': institution,
+        'role': 'student',
+        'email': email,
+        'displayName': name,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'authProvider': 'email',
+      }, SetOptions(merge: true));
+
+      await _userService.syncFcmToken(user.uid);
 
       // Initialize notification service for this user
       await NotificationService.instance.initialize();
@@ -141,6 +166,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      final credential = await _authService.signInWithGoogle();
+      if (credential == null || credential.user == null) return;
+
+      final user = credential.user!;
+      final complete = await _authService.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (!complete) {
+        Navigator.of(context).pushReplacement(
+          AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
+        );
+        return;
+      }
+
+      await _userService.syncFcmToken(user.uid);
+      await NotificationService.instance.initialize();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google sign-in failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -169,12 +223,41 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       color: Colors.grey[700],
                     ),
                   ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: PressableScale(
+                      child: OutlinedButton.icon(
+                        onPressed: (_isLoading || _isGoogleLoading)
+                            ? null
+                            : _signInWithGoogle,
+                        icon: _isGoogleLoading
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.g_mobiledata, size: 26),
+                        label: const Text('Continue with Google'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   Text('Full name', style: textTheme.labelLarge),
                   const SizedBox(height: 6),
                   TextField(
                     controller: _nameController,
                     decoration: const InputDecoration(hintText: 'Alex Johnson'),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Username', style: textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(hintText: 'alexj'),
                   ),
                   const SizedBox(height: 16),
                   Text('Email', style: textTheme.labelLarge),

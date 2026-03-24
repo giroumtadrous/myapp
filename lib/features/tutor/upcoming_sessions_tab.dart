@@ -6,7 +6,6 @@ import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../utils/app_transitions.dart';
-import '../../utils/meeting_utils.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/fade_in_stagger.dart';
@@ -98,14 +97,10 @@ class _UpcomingSessionTile extends StatelessWidget {
     }
 
     try {
-      final roomName = await _sessionRepository.ensureSessionRoomName(
-        session.id,
-        existingRoomName: session.roomName,
-      );
-
       await JitsiMeetService.instance.startMeeting(
-        roomName: roomName,
-        userName: resolveMeetingDisplayName(currentUser, fallback: 'Tutor'),
+        context: context,
+        sessionId: session.id,
+        tutorId: session.tutorId,
       );
     } catch (e) {
       if (!context.mounted) return;

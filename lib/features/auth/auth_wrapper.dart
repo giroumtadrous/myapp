@@ -2,12 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../repositories/tutor_auth_repository.dart';
+import '../../services/auth_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/pressable_scale.dart';
 import '../dashboard/main_navigation_screen.dart';
 import '../tutor/tutor_dashboard_screen.dart';
-import 'login_screen.dart';
+import 'complete_profile_screen.dart';
+import 'social_login_screen.dart';
 import 'tutor_login_screen.dart';
 
 /// Root auth listener that swaps between sign-in and dashboard screens.
@@ -17,6 +19,7 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tutorAuthRepository = TutorAuthRepository();
+    final authService = AuthService();
 
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
@@ -45,7 +48,27 @@ class AuthWrapper extends StatelessWidget {
                 return TutorDashboardScreen(tutorId: tutorSnapshot.data!);
               }
 
-              return const MainNavigationScreen();
+              if (!authService.isSocialProviderUser(user)) {
+                return const MainNavigationScreen();
+              }
+
+              return StreamBuilder<bool>(
+                stream: authService.watchProfileComplete(user.uid),
+                builder: (context, profileSnapshot) {
+                  if (profileSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Scaffold(
+                      body: AppLoadingIndicator(message: 'Checking profile...'),
+                    );
+                  }
+
+                  final isComplete = profileSnapshot.data ?? false;
+                  if (!isComplete) {
+                    return const CompleteProfileScreen();
+                  }
+
+                  return const MainNavigationScreen();
+                },
+              );
             },
           );
         }
@@ -140,7 +163,7 @@ class SignInPage extends StatelessWidget {
                             onPressed: () {
                               Navigator.of(context).push(
                                 AppTransitions.slideFromRight(
-                                  page: const LoginScreen(),
+                                  page: const SocialLoginScreen(),
                                 ),
                               );
                             },

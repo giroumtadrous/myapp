@@ -1,6 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../features/auth/complete_profile_screen.dart';
+import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
 import '../../features/auth/register_screen.dart';
@@ -18,7 +21,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _isSocialLoading = false;
   bool _obscureText = true;
+  final _authService = AuthService();
 
   static const int _minPasswordLength = 6;
 
@@ -62,9 +67,19 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final userCredential = await FirebaseAuth.instance
           .signInWithEmailAndPassword(email: email, password: password);
-      
+
       final user = userCredential.user;
       if (user == null) return;
+
+      final complete = await _authService.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (!complete) {
+        Navigator.of(context).pushReplacement(
+          AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
+        );
+        return;
+      }
 
       // Update FCM token for the logged-in user
       final userService = UserService();
@@ -82,6 +97,11 @@ class _LoginScreenState extends State<LoginScreen> {
       String message = 'Failed to sign in. Please try again.';
       if (e.code == 'user-not-found') {
         message = 'No user found for that email.';
+        if (mounted) {
+          Navigator.of(context).push(
+            AppTransitions.slideFromRight(page: const RegisterScreen()),
+          );
+        }
       } else if (e.code == 'wrong-password') {
         message = 'Incorrect password. Please try again.';
       } else if (e.code == 'invalid-email') {
@@ -96,6 +116,69 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  bool get _isAppleAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+
+  Future<void> _handleSocialResult(UserCredential? credential) async {
+    if (credential == null || credential.user == null) return;
+
+    final user = credential.user!;
+
+    try {
+      // Check if profile is complete
+      final complete = await _authService.isProfileComplete(user.uid);
+
+      if (!mounted) return;
+
+      if (!complete) {
+        // Redirect to profile completion screen
+        Navigator.of(context).pushReplacement(
+          AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
+        );
+        return;
+      }
+
+      // Profile is complete, sync FCM token AFTER authentication
+      final userService = UserService();
+      await userService.syncFcmToken(user.uid);
+      await NotificationService.instance.initialize();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to complete sign-in: $e')),
+      );
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isSocialLoading = true);
+    try {
+      final credential = await _authService.signInWithGoogle();
+      await _handleSocialResult(credential);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google sign-in failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSocialLoading = false);
+    }
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() => _isSocialLoading = true);
+    try {
+      final credential = await _authService.signInWithApple();
+      await _handleSocialResult(credential);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Apple sign-in failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSocialLoading = false);
     }
   }
 
@@ -244,6 +327,51 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    Row(
+                      children: const [
+                        Expanded(child: Divider()),
+                        Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 10),
+                          child: Text('or'),
+                        ),
+                        Expanded(child: Divider()),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: PressableScale(
+                        child: OutlinedButton.icon(
+                          onPressed: (_isLoading || _isSocialLoading)
+                              ? null
+                              : _signInWithGoogle,
+                          icon: const Icon(Icons.g_mobiledata, size: 26),
+                          label: const Text('Continue with Google'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (_isAppleAvailable) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: PressableScale(
+                          child: OutlinedButton.icon(
+                            onPressed: (_isLoading || _isSocialLoading)
+                                ? null
+                                : _signInWithApple,
+                            icon: const Icon(Icons.apple),
+                            label: const Text('Continue with Apple'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [

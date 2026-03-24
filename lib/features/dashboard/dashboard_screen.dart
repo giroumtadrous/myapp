@@ -10,7 +10,6 @@ import '../../repositories/tutors_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../services/user_service.dart';
 import '../../utils/app_transitions.dart';
-import '../../utils/meeting_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/fade_in_stagger.dart';
 import '../../widgets/session_card.dart';
@@ -164,14 +163,10 @@ class _UpcomingSessionsList extends StatelessWidget {
     User user,
   ) async {
     try {
-      final roomName = await sessionRepository.ensureSessionRoomName(
-        session.id,
-        existingRoomName: session.roomName,
-      );
-
       await JitsiMeetService.instance.startMeeting(
-        roomName: roomName,
-        userName: resolveMeetingDisplayName(user, fallback: 'Student'),
+        context: context,
+        sessionId: session.id,
+        tutorId: session.tutorId,
       );
     } catch (e) {
       if (!context.mounted) return;

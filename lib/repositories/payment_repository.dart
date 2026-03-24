@@ -32,7 +32,7 @@ class PaymentRepository {
   }
 
   String _jitsiMeetLink(String roomName) {
-    return 'https://meet.jit.si/$roomName';
+    return 'https://meet.ffmuc.net/$roomName';
   }
 
   Future<void> submitManualPayment({

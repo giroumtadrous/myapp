@@ -96,7 +96,7 @@ class SessionRepository {
       final generated = _generateRandomRoomName();
       tx.set(sessionRef, {
         'roomName': generated,
-        'meetLink': 'https://meet.jit.si/$generated',
+        'meetLink': 'https://meet.ffmuc.net/$generated',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
