@@ -26,7 +26,6 @@ class TutorBookingScreen extends StatefulWidget {
 }
 
 class _TutorBookingScreenState extends State<TutorBookingScreen> {
-  static const _reviewsCount = 124;
   static const List<String> _blockingStatuses = <String>[
     'pending',
     'confirmed',
@@ -601,7 +600,8 @@ class _TutorBookingScreenState extends State<TutorBookingScreen> {
                   const SizedBox(height: 20),
                   _StatsSection(
                     rating: widget.tutor.rating,
-                    reviewsCount: _reviewsCount,
+                    reviewsCount: widget.tutor.totalReviews,
+                    completedSessions: widget.tutor.completedSessionsCount,
                   ),
                   const SizedBox(height: 20),
                   _PriceSection(price: widget.tutor.hourlyRate),
@@ -691,6 +691,17 @@ class _TutorHeader extends StatelessWidget {
           style: textTheme.bodyMedium?.copyWith(color: Colors.grey[700]),
           textAlign: TextAlign.center,
         ),
+        if (tutor.university.trim().isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            tutor.university,
+            style: textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF0F766E),
+              fontWeight: FontWeight.w600,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -777,19 +788,25 @@ class _ActionButtons extends StatelessWidget {
 class _StatsSection extends StatelessWidget {
   final double rating;
   final int reviewsCount;
+  final int completedSessions;
 
-  const _StatsSection({required this.rating, required this.reviewsCount});
+  const _StatsSection({
+    required this.rating,
+    required this.reviewsCount,
+    required this.completedSessions,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
       children: [
         StatCard(
           leading: Icon(Icons.star_rounded, color: Colors.amber[600], size: 28),
           value: rating.toStringAsFixed(1),
           label: 'Rating',
         ),
-        const SizedBox(width: 12),
         StatCard(
           leading: Icon(
             Icons.rate_review_outlined,
@@ -798,6 +815,15 @@ class _StatsSection extends StatelessWidget {
           ),
           value: reviewsCount.toString(),
           label: 'Reviews',
+        ),
+        StatCard(
+          leading: Icon(
+            Icons.menu_book_rounded,
+            color: Theme.of(context).colorScheme.secondary,
+            size: 24,
+          ),
+          value: completedSessions.toString(),
+          label: 'Completed',
         ),
       ],
     );

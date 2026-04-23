@@ -3,12 +3,15 @@ class Tutor {
   final String name;
   final String email;
   final String bio;
+  final String university;
   final String? profileImageUrl;
   final List<String> subjects;
   final List<String> main;
   final Map<String, List<String>>? subjectsByMain;
   final double hourlyRate;
   final double rating;
+  final int totalReviews;
+  final int completedSessionsCount;
   final Map<String, List<String>> weeklyAvailability;
 
   Tutor({
@@ -16,9 +19,12 @@ class Tutor {
     required this.name,
     required this.email,
     required this.bio,
+    required this.university,
     this.profileImageUrl,
     required this.hourlyRate,
     required this.rating,
+    required this.totalReviews,
+    required this.completedSessionsCount,
     required this.subjects,
     required this.main,
     required this.weeklyAvailability,
@@ -31,6 +37,12 @@ class Tutor {
       name: _toString(data['name']),
       email: _toString(data['email']),
       bio: _toString(data['bio']),
+      university: _toString(
+        data['university'] ??
+            data['universityOrHighSchool'] ??
+            data['institution'] ??
+            data['school'],
+      ),
       profileImageUrl: _toOptionalString(
         data['profileImageUrl'] ??
         data['photoUrl'] ??
@@ -39,6 +51,8 @@ class Tutor {
       ),
       hourlyRate: _toDouble(data['hourlyRate'] ?? data['hourly_rate']),
       rating: _toDouble(data['rating']),
+      totalReviews: _toInt(data['totalReviews']),
+      completedSessionsCount: _toInt(data['completedSessionsCount']),
       subjects: _toSubjects(data['subjects']),
       main: _toSubjects(data['main']),
       subjectsByMain: _toSubjectsByMain(data['subjects_by_main']),
@@ -72,14 +86,24 @@ class Tutor {
     return 0;
   }
 
+  static int _toInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toInt();
+    if (v is String) return int.tryParse(v) ?? 0;
+    return 0;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'name': name,
       'email': email,
       'bio': bio,
+      'university': university,
       'profileImageUrl': profileImageUrl,
       'hourlyRate': hourlyRate,
       'rating': rating,
+      'totalReviews': totalReviews,
+      'completedSessionsCount': completedSessionsCount,
       'subjects': subjects,
       'main': main,
       'subjects_by_main': subjectsByMain,
@@ -113,5 +137,30 @@ class Tutor {
       }
     });
     return result;
+  }
+
+  Tutor copyWith({
+    double? rating,
+    int? totalReviews,
+    int? completedSessionsCount,
+    String? university,
+  }) {
+    return Tutor(
+      id: id,
+      name: name,
+      email: email,
+      bio: bio,
+      university: university ?? this.university,
+      profileImageUrl: profileImageUrl,
+      hourlyRate: hourlyRate,
+      rating: rating ?? this.rating,
+      totalReviews: totalReviews ?? this.totalReviews,
+      completedSessionsCount:
+          completedSessionsCount ?? this.completedSessionsCount,
+      subjects: subjects,
+      main: main,
+      weeklyAvailability: weeklyAvailability,
+      subjectsByMain: subjectsByMain,
+    );
   }
 }

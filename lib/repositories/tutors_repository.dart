@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/tutor_model.dart';
@@ -22,6 +24,91 @@ class TutorsRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   static const int _arrayContainsAnyLimit = 30;
+
+  Future<Map<String, _TutorComputedStats>> _loadTutorStats(
+    List<Tutor> tutors,
+  ) async {
+    final tutorIds = tutors.map((t) => t.id).toSet();
+    if (tutorIds.isEmpty) return const <String, _TutorComputedStats>{};
+
+    final reviewsSnap = await _firestore.collection('reviews').get();
+    final completedSnap = await _firestore
+        .collection('sessions')
+        .where('status', isEqualTo: 'completed')
+        .get();
+
+    final ratingSums = <String, double>{};
+    final reviewsCount = <String, int>{};
+    for (final doc in reviewsSnap.docs) {
+      final data = doc.data();
+      final tutorId = (data['tutorId'] ?? '').toString();
+      if (!tutorIds.contains(tutorId)) continue;
+
+      final rating = (data['rating'] as num?)?.toDouble() ?? 0;
+      ratingSums[tutorId] = (ratingSums[tutorId] ?? 0) + rating;
+      reviewsCount[tutorId] = (reviewsCount[tutorId] ?? 0) + 1;
+    }
+
+    final completedCount = <String, int>{};
+    for (final doc in completedSnap.docs) {
+      final data = doc.data();
+      final tutorId = (data['tutorId'] ?? '').toString();
+      if (!tutorIds.contains(tutorId)) continue;
+      completedCount[tutorId] = (completedCount[tutorId] ?? 0) + 1;
+    }
+
+    final stats = <String, _TutorComputedStats>{};
+    for (final tutor in tutors) {
+      final count = reviewsCount[tutor.id] ?? 0;
+      final sum = ratingSums[tutor.id] ?? 0;
+      stats[tutor.id] = _TutorComputedStats(
+        averageRating: count > 0 ? sum / count : 0,
+        totalReviews: count,
+        completedSessionsCount: completedCount[tutor.id] ?? 0,
+      );
+    }
+    return stats;
+  }
+
+  Future<void> _ensureInstitutionField(
+    QueryDocumentSnapshot<Map<String, dynamic>> doc,
+    Tutor tutor,
+  ) async {
+    final data = doc.data();
+    final existing = (data['university'] ?? '').toString().trim();
+    if (existing.isNotEmpty) return;
+
+    final fallback = tutor.university.trim();
+    if (fallback.isEmpty) return;
+
+    unawaited(
+      doc.reference.set({
+        'university': fallback,
+      }, SetOptions(merge: true)),
+    );
+  }
+
+  Future<List<Tutor>> _withDynamicStats(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) async {
+    final tutors = docs.map((doc) => Tutor.fromMap(doc.id, doc.data())).toList();
+    for (var i = 0; i < docs.length; i++) {
+      await _ensureInstitutionField(docs[i], tutors[i]);
+    }
+
+    final stats = await _loadTutorStats(tutors);
+    return tutors.map((tutor) {
+      final s = stats[tutor.id];
+      return tutor.copyWith(
+        rating: s == null
+            ? tutor.rating
+            : (s.totalReviews > 0 ? s.averageRating : tutor.rating),
+        totalReviews: s?.totalReviews ?? tutor.totalReviews,
+        completedSessionsCount:
+            s?.completedSessionsCount ?? tutor.completedSessionsCount,
+      );
+    }).toList();
+  }
 
   /// Returns a real-time stream of tutors. Updates when tutors are added,
   /// edited, or deleted in Firestore.
@@ -59,10 +146,8 @@ class TutorsRepository {
       query = query.where('main', arrayContains: categoryFilter);
     }
 
-    return query.snapshots().map((snapshot) {
-      var tutors = snapshot.docs
-          .map((doc) => Tutor.fromMap(doc.id, doc.data()))
-          .toList();
+    return query.snapshots().asyncMap((snapshot) async {
+      var tutors = await _withDynamicStats(snapshot.docs);
 
       if (applyCategoryLocally) {
         tutors = tutors
@@ -74,6 +159,19 @@ class TutorsRepository {
       // array-contains + orderBy combinations.
       tutors.sort((a, b) => b.rating.compareTo(a.rating));
       return tutors;
+    });
+  }
+
+  Stream<List<Tutor>> getTutorsFromInstitution(String institution) {
+    final target = institution.trim().toLowerCase();
+    if (target.isEmpty) return Stream.value(const <Tutor>[]);
+
+    return getTutors().map((tutors) {
+      final filtered = tutors.where((tutor) {
+        return tutor.university.trim().toLowerCase() == target;
+      }).toList();
+      filtered.sort((a, b) => b.rating.compareTo(a.rating));
+      return filtered;
     });
   }
 
@@ -94,9 +192,8 @@ class TutorsRepository {
     }
 
     if (normalizedIds.length > _arrayContainsAnyLimit) {
-      return _firestore.collection(_collection).snapshots().map((snapshot) {
-        final tutors = snapshot.docs
-            .map((doc) => Tutor.fromMap(doc.id, doc.data()))
+      return _firestore.collection(_collection).snapshots().asyncMap((snapshot) async {
+        final tutors = (await _withDynamicStats(snapshot.docs))
             .where(
               (tutor) => tutor.subjects.any(
                 (subject) => normalizedIds.contains(subject),
@@ -113,10 +210,8 @@ class TutorsRepository {
         .collection(_collection)
         .where('subjects', arrayContainsAny: normalizedIds)
         .snapshots()
-        .map((snapshot) {
-          final tutors = snapshot.docs
-              .map((doc) => Tutor.fromMap(doc.id, doc.data()))
-              .toList();
+        .asyncMap((snapshot) async {
+          final tutors = await _withDynamicStats(snapshot.docs);
           tutors.sort((a, b) => b.rating.compareTo(a.rating));
           return tutors;
         });
@@ -133,10 +228,8 @@ class TutorsRepository {
         .collection(_collection)
         .where('subjects', arrayContains: value)
         .snapshots()
-        .map((snapshot) {
-          final tutors = snapshot.docs
-              .map((doc) => Tutor.fromMap(doc.id, doc.data()))
-              .toList();
+        .asyncMap((snapshot) async {
+          final tutors = await _withDynamicStats(snapshot.docs);
           tutors.sort((a, b) => b.rating.compareTo(a.rating));
           return tutors;
         });
@@ -220,11 +313,23 @@ class TutorsRepository {
   /// Gets a real-time stream of a single tutor by ID.
   /// Returns a stream that updates whenever the tutor document changes in Firestore.
   Stream<Tutor?> getTutorById(String tutorId) {
-    return _firestore.collection(_collection).doc(tutorId).snapshots().map((
+    return _firestore.collection(_collection).doc(tutorId).snapshots().asyncMap((
       doc,
-    ) {
+    ) async {
       if (!doc.exists) return null;
-      return Tutor.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      final tutor = Tutor.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+      final stats = await _loadTutorStats([tutor]);
+      final computed = stats[tutor.id];
+      return tutor.copyWith(
+        rating: computed == null
+            ? tutor.rating
+            : (computed.totalReviews > 0
+                  ? computed.averageRating
+                  : tutor.rating),
+        totalReviews: computed?.totalReviews ?? tutor.totalReviews,
+        completedSessionsCount:
+            computed?.completedSessionsCount ?? tutor.completedSessionsCount,
+      );
     });
   }
 
@@ -237,4 +342,16 @@ class TutorsRepository {
       throw Exception('Failed to update bio: $e');
     }
   }
+}
+
+class _TutorComputedStats {
+  final double averageRating;
+  final int totalReviews;
+  final int completedSessionsCount;
+
+  const _TutorComputedStats({
+    required this.averageRating,
+    required this.totalReviews,
+    required this.completedSessionsCount,
+  });
 }

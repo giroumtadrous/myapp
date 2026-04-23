@@ -96,7 +96,10 @@ class AuthService {
       final data = doc.data() ?? <String, dynamic>{};
       // Require both username and institution
       final username = (data['username'] ?? '').toString().trim();
-      final institution = (data['institution'] ?? '').toString().trim();
+        final institution =
+          (data['universityOrHighSchool'] ?? data['institution'] ?? '')
+            .toString()
+            .trim();
       return username.isNotEmpty && institution.isNotEmpty;
     } catch (e, st) {
       debugPrint('[AuthService] Failed to check profile completeness: $e');
@@ -114,7 +117,10 @@ class AuthService {
       if (!doc.exists) return false;
       final data = doc.data()!;
       final username = (data['username'] ?? '').toString().trim();
-      final institution = (data['institution'] ?? '').toString().trim();
+        final institution =
+          (data['universityOrHighSchool'] ?? data['institution'] ?? '')
+            .toString()
+            .trim();
       return username.isNotEmpty && institution.isNotEmpty;
     });
   }
@@ -152,6 +158,7 @@ class AuthService {
         'uid': uid,
         'username': username,
         'institution': '', // Empty, user can update after
+        'universityOrHighSchool': '',
         'email': user.email ?? '',
         'displayName': user.displayName ?? '',
         'photoUrl': user.photoURL ?? '',

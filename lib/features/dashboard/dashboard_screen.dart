@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../models/tutor_model.dart';
 import '../../repositories/payment_repository.dart';
@@ -32,6 +33,53 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _sessionRepository = SessionRepository();
   final _paymentRepository = PaymentRepository();
 
+  Widget _buildTutorSection({
+    required Stream<List<Tutor>> stream,
+    required String emptyMessage,
+  }) {
+    return StreamBuilder<List<Tutor>>(
+      stream: stream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _TutorsLoadingState();
+        }
+
+        if (snapshot.hasError) {
+          return _TutorsErrorState(
+            message: snapshot.error?.toString() ?? 'Something went wrong',
+          );
+        }
+
+        final tutors = [...(snapshot.data ?? [])]
+          ..sort((a, b) => b.rating.compareTo(a.rating));
+        final topTutors = tutors.take(3).toList();
+
+        if (topTutors.isEmpty) {
+          return _TutorsEmptyState(message: emptyMessage);
+        }
+
+        return Column(
+          children: List.generate(topTutors.length, (index) {
+            final tutor = topTutors[index];
+            return FadeInStagger(
+              index: index,
+              child: TutorCard(
+                tutor: tutor,
+                onTap: () {
+                  Navigator.of(context).push(
+                    AppTransitions.slideFromRight(
+                      page: TutorBookingScreen(tutor: tutor),
+                    ),
+                  );
+                },
+              ),
+            );
+          }),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -61,74 +109,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     paymentRepository: _paymentRepository,
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Top Rated Tutors',
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            AppTransitions.slideFromRight(
-                              page: const ExploreScreen(),
-                            ),
-                          );
-                        },
-                        child: const Text('Explore'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  StreamBuilder<List<Tutor>>(
-                    stream: _tutorsRepository.getTutors(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const _TutorsLoadingState();
-                      }
-
-                      if (snapshot.hasError) {
-                        return _TutorsErrorState(
-                          message:
-                              snapshot.error?.toString() ??
-                              'Something went wrong',
-                        );
-                      }
-
-                      final tutors = [...(snapshot.data ?? [])]
-                        ..sort((a, b) => b.rating.compareTo(a.rating));
-                      final topTutors = tutors.take(3).toList();
+                  FutureBuilder<AppUser?>(
+                    future: FirebaseAuth.instance.currentUser != null
+                        ? _userService.getUser(FirebaseAuth.instance.currentUser!.uid)
+                        : null,
+                    builder: (context, userSnapshot) {
+                      final institution =
+                          (userSnapshot.data?.universityOrHighSchool.isNotEmpty ==
+                                  true
+                              ? userSnapshot.data!.universityOrHighSchool
+                              : userSnapshot.data?.institution ?? '')
+                              .trim();
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (topTutors.isEmpty)
-                            const _TutorsEmptyState()
-                          else
-                            Column(
-                              children: List.generate(topTutors.length, (
-                                index,
-                              ) {
-                                final tutor = topTutors[index];
-
-                                return FadeInStagger(
-                                  index: index,
-                                  child: TutorCard(
-                                    tutor: tutor,
-                                    onTap: () {
-                                      Navigator.of(context).push(
-                                        AppTransitions.slideFromRight(
-                                          page: TutorBookingScreen(tutor: tutor),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                );
-                              }),
+                          if (institution.isNotEmpty) ...[
+                            Text(
+                              'Tutors from your institution',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
+                            const SizedBox(height: 12),
+                            _buildTutorSection(
+                              stream: _tutorsRepository.getTutorsFromInstitution(
+                                institution,
+                              ),
+                              emptyMessage:
+                                  'No tutors from your institution yet.',
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'All Tutors',
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).push(
+                                    AppTransitions.slideFromRight(
+                                      page: const ExploreScreen(),
+                                    ),
+                                  );
+                                },
+                                child: const Text('Explore'),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _buildTutorSection(
+                            stream: _tutorsRepository.getTutors(),
+                            emptyMessage: 'No tutors available',
+                          ),
                         ],
                       );
                     },
@@ -348,7 +386,9 @@ class _TutorsErrorState extends StatelessWidget {
 }
 
 class _TutorsEmptyState extends StatelessWidget {
-  const _TutorsEmptyState();
+  final String message;
+
+  const _TutorsEmptyState({this.message = 'Check back later or explore other pages.'});
 
   @override
   Widget build(BuildContext context) {
@@ -369,7 +409,7 @@ class _TutorsEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Check back later or explore other pages.',
+              message,
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: Colors.grey[700]),

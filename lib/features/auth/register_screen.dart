@@ -114,6 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'username': username,
         'name': name,
         'institution': institution,
+        'universityOrHighSchool': institution,
         'role': 'student',
         'email': email,
         'displayName': name,

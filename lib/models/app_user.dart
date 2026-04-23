@@ -8,6 +8,7 @@ class AppUser {
   final DateTime createdAt;
   final String role;
   final String institution;
+  final String universityOrHighSchool;
 
   const AppUser({
     required this.id,
@@ -16,6 +17,7 @@ class AppUser {
     required this.createdAt,
     this.role = 'student',
     this.institution = '',
+    this.universityOrHighSchool = '',
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -33,6 +35,12 @@ class AppUser {
           : DateTime.now(),
       role: (data['role'] ?? 'student').toString(),
       institution: (data['institution'] ?? data['school'] ?? '').toString(),
+      universityOrHighSchool:
+          (data['universityOrHighSchool'] ??
+                  data['institution'] ??
+                  data['school'] ??
+                  '')
+              .toString(),
     );
   }
 
@@ -42,5 +50,6 @@ class AppUser {
         'createdAt': Timestamp.fromDate(createdAt),
         'role': role,
         'institution': institution,
+        'universityOrHighSchool': universityOrHighSchool,
       };
 }

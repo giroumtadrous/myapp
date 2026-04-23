@@ -80,6 +80,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         'username': _usernameController.text.trim(),
         'name': _usernameController.text.trim(),
         'institution': _institutionController.text.trim(),
+        'universityOrHighSchool': _institutionController.text.trim(),
         'email': user.email,
         'displayName': user.displayName,
         'photoUrl': user.photoURL,

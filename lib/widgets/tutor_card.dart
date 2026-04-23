@@ -147,6 +147,39 @@ class _TutorCardState extends State<TutorCard> {
                                 color: Color(0xFF64748B),
                               ),
                             ),
+                            if (widget.tutor.university.trim().isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.tutor.university,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF0F766E),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                Text(
+                                  '${widget.tutor.totalReviews} reviews',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  '${widget.tutor.completedSessionsCount} sessions completed',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
                             const SizedBox(height: 8),
                             Wrap(
                               spacing: 6,

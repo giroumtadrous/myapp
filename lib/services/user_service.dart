@@ -65,6 +65,7 @@ class UserService {
         'email': email,
         'role': role,
         'institution': institution,
+        'universityOrHighSchool': institution ?? '',
         'fcmToken': fcmToken,
         'fcmTokens': FieldValue.arrayUnion(
           fcmToken != null ? <String>[fcmToken] : <String>[],

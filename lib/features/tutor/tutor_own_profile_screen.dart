@@ -185,31 +185,62 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
-                      Expanded(
+                      SizedBox(
+                        width: 106,
                         child: _ProfileStatCard(
                           title: 'Rating',
                           value: tutor.rating.toStringAsFixed(1),
                           icon: Icons.star,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
+                      SizedBox(
+                        width: 106,
+                        child: _ProfileStatCard(
+                          title: 'Reviews',
+                          value: '${tutor.totalReviews}',
+                          icon: Icons.rate_review_outlined,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 106,
+                        child: _ProfileStatCard(
+                          title: 'Completed',
+                          value: '${tutor.completedSessionsCount}',
+                          icon: Icons.menu_book_rounded,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 106,
                         child: _ProfileStatCard(
                           title: 'Rate',
                           value: '\$${tutor.hourlyRate.toStringAsFixed(0)}',
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _ProfileStatCard(
-                          title: 'Subjects',
-                          value: '${tutor.subjects.length}',
-                        ),
-                      ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  _SectionLabel(label: 'Institution'),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        tutor.university.trim().isEmpty
+                            ? 'University not provided yet.'
+                            : tutor.university,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: tutor.university.trim().isEmpty
+                              ? Colors.grey[500]
+                              : null,
+                        ),
+                      ),
+                    ),
+                  ),
+
                   const SizedBox(height: 16),
 
                   // ── Bio ──────────────────────────────────────────────────

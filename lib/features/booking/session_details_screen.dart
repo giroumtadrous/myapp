@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/session_model.dart';
+import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../utils/session_status_utils.dart';
@@ -21,8 +22,10 @@ class SessionDetailsScreen extends StatefulWidget {
 
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
+  final ReviewsRepository _reviewsRepository = ReviewsRepository();
   bool _isCanceling = false;
   bool _isJoining = false;
+  bool _submittingReview = false;
 
   Future<void> _joinSession(SessionModel session) async {
     final user = FirebaseAuth.instance.currentUser;
@@ -118,6 +121,108 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         status != 'rejected';
   }
 
+  bool _canReview(SessionModel session, User? user) {
+    if (user == null) return false;
+    return session.status.toLowerCase() == 'completed' &&
+        session.studentId.trim() == user.uid;
+  }
+
+  Future<void> _showReviewDialog(SessionModel session) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final textController = TextEditingController();
+    var selectedRating = 5;
+
+    final submit = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Rate this session'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('How was your session with this tutor?'),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: List.generate(5, (index) {
+                      final isFilled = index < selectedRating;
+                      return IconButton(
+                        onPressed: () {
+                          setDialogState(() {
+                            selectedRating = index + 1;
+                          });
+                        },
+                        icon: Icon(
+                          isFilled ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: Colors.amber,
+                        ),
+                      );
+                    }),
+                  ),
+                  TextField(
+                    controller: textController,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'Write a short review (optional)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('Submit Review'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (submit != true) {
+      textController.dispose();
+      return;
+    }
+
+    if (!mounted) {
+      textController.dispose();
+      return;
+    }
+
+    setState(() => _submittingReview = true);
+    try {
+      await _reviewsRepository.submitReview(
+        sessionId: session.id,
+        tutorId: session.tutorId,
+        studentId: user.uid,
+        rating: selectedRating.toDouble(),
+        reviewText: textController.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Review submitted successfully.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit review: $e')),
+      );
+    } finally {
+      textController.dispose();
+      if (mounted) setState(() => _submittingReview = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -148,8 +253,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           }
 
           final session = details.session;
+          final currentUser = FirebaseAuth.instance.currentUser;
           final canJoin = _sessionRepository.canJoinSession(session);
           final canCancel = _canCancel(session);
+          final canReview = _canReview(session, currentUser);
           final statusColor = sessionStatusColor(session.status);
 
           return Column(
@@ -286,6 +393,61 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                       ],
                     ),
                     const SizedBox(height: 14),
+                    if (canReview)
+                      FutureBuilder<bool>(
+                        future: _reviewsRepository.hasReviewForSession(session.id),
+                        builder: (context, reviewSnapshot) {
+                          if (reviewSnapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: LinearProgressIndicator(minHeight: 2),
+                            );
+                          }
+
+                          final alreadyReviewed = reviewSnapshot.data ?? false;
+                          return _SectionCard(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Text(
+                                  alreadyReviewed
+                                      ? 'You already reviewed this session.'
+                                      : 'Rate & review this completed session',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleSmall
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 8),
+                                FilledButton.icon(
+                                  onPressed: alreadyReviewed || _submittingReview
+                                      ? null
+                                      : () => _showReviewDialog(session),
+                                  icon: _submittingReview
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Icon(Icons.rate_review_outlined),
+                                  label: Text(
+                                    _submittingReview
+                                        ? 'Submitting...'
+                                        : alreadyReviewed
+                                            ? 'Review Submitted'
+                                            : 'Write a Review',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    if (canReview) const SizedBox(height: 14),
                     const Text(
                       'NOTES',
                       style: TextStyle(

@@ -77,7 +77,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _ProfileContent(
                     name: name,
                     email: email,
-                    institution: appUser?.institution ?? '',
+                    institution: appUser?.universityOrHighSchool.isNotEmpty == true
+                        ? appUser!.universityOrHighSchool
+                        : appUser?.institution ?? '',
                     memberSince: appUser?.createdAt,
                     role: appUser?.role ?? 'student',
                     isLoading:
