@@ -47,6 +47,11 @@ class _SocialLoginScreenState extends State<SocialLoginScreen> {
       // Profile is complete, sync FCM token AFTER authentication
       await _userService.syncFcmToken(user.uid);
       await NotificationService.instance.initialize();
+
+      if (!mounted) return;
+
+      // Return to root auth wrapper so authStateChanges can render dashboard.
+      Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

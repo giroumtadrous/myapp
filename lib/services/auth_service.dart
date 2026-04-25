@@ -32,7 +32,30 @@ class AuthService {
 
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      final googleUser = await GoogleSignIn().signIn();
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider();
+        provider.setCustomParameters({'prompt': 'select_account'});
+        return await _auth.signInWithPopup(provider);
+      }
+
+      if (defaultTargetPlatform != TargetPlatform.android &&
+          defaultTargetPlatform != TargetPlatform.iOS &&
+          defaultTargetPlatform != TargetPlatform.macOS) {
+        throw UnsupportedError(
+          'Google sign-in is not supported on this platform. Use Android, iOS, macOS, or Web.',
+        );
+      }
+
+      final googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
+
+      // Clear cached selection so Google shows the account picker reliably.
+      try {
+        await googleSignIn.disconnect();
+      } catch (_) {
+        await googleSignIn.signOut();
+      }
+
+      final googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         debugPrint('[AuthService] Google sign-in cancelled by user.');
         return null;
@@ -45,10 +68,18 @@ class AuthService {
       );
 
       return await _auth.signInWithCredential(credential);
+    } on FirebaseAuthException catch (e, st) {
+      debugPrint('[AuthService] Firebase Google sign-in failed: ${e.code} ${e.message}');
+      debugPrint(st.toString());
+      rethrow;
+    } on UnsupportedError catch (e, st) {
+      debugPrint('[AuthService] Google sign-in unsupported: $e');
+      debugPrint(st.toString());
+      rethrow;
     } catch (e, st) {
       debugPrint('[AuthService] Google sign-in failed: $e');
       debugPrint(st.toString());
-      return null;
+      rethrow;
     }
   }
 
