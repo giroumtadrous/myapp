@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../constants/egyptian_universities.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_service.dart';
 import '../../widgets/pressable_scale.dart';
@@ -16,9 +17,9 @@ class CompleteProfileScreen extends StatefulWidget {
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
-  final _institutionController = TextEditingController();
   final _authService = AuthService();
   final _userService = UserService();
+  String? _selectedInstitution;
   bool _saving = false;
 
   @override
@@ -27,7 +28,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     _prefillFromCurrentUser();
   }
 
-  void _prefillFromCurrentUser() {
+  Future<void> _prefillFromCurrentUser() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -35,12 +36,26 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (displayName.isNotEmpty) {
       _usernameController.text = displayName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
     }
+
+    try {
+      final appUser = await _userService.getUser(user.uid);
+      if (!mounted || appUser == null) return;
+
+      final institution =
+          appUser.universityOrHighSchool.trim().isNotEmpty
+              ? appUser.universityOrHighSchool.trim()
+              : appUser.institution.trim();
+      if (egyptianUniversities.contains(institution)) {
+        setState(() => _selectedInstitution = institution);
+      }
+    } catch (_) {
+      // Keep default empty selection if prefill fails.
+    }
   }
 
   @override
   void dispose() {
     _usernameController.dispose();
-    _institutionController.dispose();
     super.dispose();
   }
 
@@ -49,12 +64,15 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (username.isEmpty) return 'Username is required';
     if (username.length < 3) return 'Username must be at least 3 characters';
     if (username.contains(' ')) return 'Username cannot contain spaces';
+    if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(username)) {
+      return 'Username can only use letters, numbers, dot, and underscore';
+    }
     return null;
   }
 
   String? _validateInstitution(String? value) {
     final institution = (value ?? '').trim();
-    if (institution.isEmpty) return 'Institution is required';
+    if (institution.isEmpty) return 'Please select your university';
     return null;
   }
 
@@ -74,13 +92,26 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
       final existingDoc = await userRef.get();
       final provider = _authService.detectSocialProvider(user);
+      final normalizedUsername = _authService.normalizeUsername(_usernameController.text);
+
+      final usernameAvailable = await _authService.isUsernameAvailable(
+        normalizedUsername,
+        excludeUid: user.uid,
+      );
+      if (!usernameAvailable) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That username is already taken.')),
+        );
+        return;
+      }
 
       final payload = <String, dynamic>{
         'uid': user.uid,
-        'username': _usernameController.text.trim(),
-        'name': _usernameController.text.trim(),
-        'institution': _institutionController.text.trim(),
-        'universityOrHighSchool': _institutionController.text.trim(),
+        'username': normalizedUsername,
+        'name': user.displayName ?? normalizedUsername,
+        'institution': _selectedInstitution!.trim(),
+        'universityOrHighSchool': _selectedInstitution!.trim(),
         'email': user.email,
         'displayName': user.displayName,
         'photoUrl': user.photoURL,
@@ -153,14 +184,26 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    TextFormField(
-                      controller: _institutionController,
+                    DropdownButtonFormField<String>(
+                      value: _selectedInstitution,
                       validator: _validateInstitution,
+                      isExpanded: true,
                       decoration: const InputDecoration(
-                        labelText: 'Institution',
-                        hintText: 'University or School',
+                        labelText: 'University',
+                        hintText: 'Select your university',
                         prefixIcon: Icon(Icons.school_outlined),
                       ),
+                      items: egyptianUniversities
+                          .map(
+                            (university) => DropdownMenuItem<String>(
+                              value: university,
+                              child: Text(university),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: _saving
+                          ? null
+                          : (value) => setState(() => _selectedInstitution = value),
                     ),
                     const SizedBox(height: 10),
                     if ((user?.email ?? '').isNotEmpty)

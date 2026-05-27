@@ -12,6 +12,10 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  static final RegExp _emailRegex = RegExp(
+    r'^[^\s@]+@[^\s@]+\.[^\s@]+$',
+  );
+
   // iOS setup notes:
   // 1) Enable "Sign in with Apple" capability in Xcode Runner target.
   // 2) Add CFBundleURLTypes for Google Sign-In reversed client ID in ios/Runner/Info.plist:
@@ -120,6 +124,43 @@ class AuthService {
     }
   }
 
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } catch (e, st) {
+      debugPrint('[AuthService] Failed to send password reset email: $e');
+      debugPrint(st.toString());
+      rethrow;
+    }
+  }
+ 
+
+  Future<bool> isUsernameAvailable(
+    String username, {
+    String? excludeUid,
+  }) async {
+    final normalized = username.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    final query = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: normalized)
+        .get();
+
+    if (query.docs.isEmpty) return true;
+    if (excludeUid == null) return false;
+
+    return query.docs.every((doc) => doc.id == excludeUid || doc.data()['uid'] == excludeUid);
+  }
+
+  bool isValidEmail(String email) {
+    return _emailRegex.hasMatch(email.trim());
+  }
+
+  String normalizeUsername(String username) {
+    return username.trim().toLowerCase();
+  }
+
   Future<bool> isProfileComplete(String uid) async {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
@@ -183,6 +224,8 @@ class AuthService {
       if (username.length < 3) {
         username = '${username}_user';
       }
+
+      username = normalizeUsername(username);
 
       // Create profile with institution as empty (user can update later)
       await _firestore.collection('users').doc(uid).set({

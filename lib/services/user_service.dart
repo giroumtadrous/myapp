@@ -55,7 +55,7 @@ class UserService {
   }) async {
     try {
       // Get FCM token
-      final fcmToken = await _getFCMToken();
+      final fcmToken = await getFCMToken();
       
       debugPrint('[UserService] Saving user $uid with FCM token: ${fcmToken?.substring(0, 20)}...');
 
@@ -99,11 +99,6 @@ class UserService {
       debugPrint(st.toString());
       rethrow;
     }
-  }
-
-  /// Updates FCM token for an existing user.
-  Future<void> updateFCMToken(String uid) async {
-    await syncFcmToken(uid);
   }
 
   /// Syncs current FCM token to Firestore and keeps it updated on refresh.
@@ -152,7 +147,7 @@ class UserService {
 
   /// Gets the current FCM token for the device.
   /// Returns null if token cannot be retrieved.
-  Future<String?> _getFCMToken() async {
+  Future<String?> getFCMToken() async {
     try {
       final token = await _messaging.getToken();
       if (token != null && token.isNotEmpty) {
@@ -166,10 +161,5 @@ class UserService {
       debugPrint('[UserService] Error getting FCM token: $e');
       return null;
     }
-  }
-
-  /// Gets the FCM token for debugging purposes.
-  Future<String?> getFCMToken() async {
-    return await _getFCMToken();
   }
 }

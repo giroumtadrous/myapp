@@ -1,18 +1,23 @@
 {
   "indexes": [
     {
-      "collectionGroup": "notifications",
+      "collectionGroup": "payments",
       "queryScope": "COLLECTION",
       "fields": [
         {
-          "fieldPath": "userId",
+          "fieldPath": "status",
           "order": "ASCENDING"
         },
         {
           "fieldPath": "createdAt",
-          "order": "DESCENDING"
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     },
     {
       "collectionGroup": "payments",
@@ -25,8 +30,13 @@
         {
           "fieldPath": "createdAt",
           "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../repositories/payment_repository.dart';
@@ -43,19 +44,46 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
   static const String _instaPayNumber = '+201283567813';
 
   final PaymentRepository _paymentRepository = PaymentRepository();
+  
+  // Selected payment method: 'card' (Visa/Mastercard) or 'instapay'
+  String _selectedMethod = 'card';
+
+  // InstaPay Form Controllers
   final TextEditingController _timeController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final TextEditingController _screenshotUrlController =
-      TextEditingController();
-
+  final TextEditingController _screenshotUrlController = TextEditingController();
   DateTime? _transferTime;
+
+  // Credit Card Form Controllers & Focus Node
+  final TextEditingController _cardNameController = TextEditingController();
+  final TextEditingController _cardNumberController = TextEditingController();
+  final TextEditingController _cardExpiryController = TextEditingController();
+  final TextEditingController _cardCvvController = TextEditingController();
+  final FocusNode _cvvFocusNode = FocusNode();
+  
   bool _submitting = false;
+  bool _isCvvFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cvvFocusNode.addListener(() {
+      setState(() {
+        _isCvvFocused = _cvvFocusNode.hasFocus;
+      });
+    });
+  }
 
   @override
   void dispose() {
     _timeController.dispose();
     _noteController.dispose();
     _screenshotUrlController.dispose();
+    _cardNameController.dispose();
+    _cardNumberController.dispose();
+    _cardExpiryController.dispose();
+    _cardCvvController.dispose();
+    _cvvFocusNode.dispose();
     super.dispose();
   }
 
@@ -89,12 +117,12 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     });
   }
 
-  Future<void> _submit() async {
+  Future<void> _submitInstaPay() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Please sign in again.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again.')),
+      );
       return;
     }
 
@@ -141,14 +169,15 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Payment submitted. Waiting for payment confirmation.'),
+          content: Text('Payment submitted. Waiting for manual verification.'),
+          backgroundColor: Colors.green,
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to submit payment: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit manual payment: $e'), backgroundColor: Colors.red),
+      );
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -156,125 +185,806 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     }
   }
 
+  Future<void> _submitCardPayment() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again.')),
+      );
+      return;
+    }
+
+    final cardName = _cardNameController.text.trim();
+    final cardNumber = _cardNumberController.text.replaceAll(' ', '');
+    final cardExpiry = _cardExpiryController.text.trim();
+    final cardCvv = _cardCvvController.text.trim();
+
+    if (cardName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter cardholder name.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    if (cardNumber.length < 16) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid 16-digit card number.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    if (cardExpiry.length < 5 || !cardExpiry.contains('/')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid expiry date (MM/YY).'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    if (cardCvv.length < 3) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid CVV code.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    try {
+      await _paymentRepository.submitCardPayment(
+        sessionId: widget.sessionId,
+        studentId: user.uid,
+        tutorId: widget.tutorId,
+        subject: widget.subject,
+        sessionDateTime: widget.sessionDateTime,
+        date: widget.date,
+        time: widget.time,
+        timeDisplay: widget.timeDisplay,
+        amount: widget.amount,
+        durationMinutes: widget.durationMinutes,
+        slotCount: widget.slotCount,
+        reservedSlots: widget.reservedSlots,
+        cardholderName: cardName,
+        cardNumber: cardNumber,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        AppTransitions.fade(page: const MainNavigationScreen()),
+        (route) => false,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Card payment approved! Session confirmed instantly.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Direct card processing failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
+  String _detectCardType(String number) {
+    if (number.startsWith('4')) return 'Visa';
+    if (number.startsWith('5')) return 'Mastercard';
+    return 'Card';
+  }
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pay with InstaPay')),
+      appBar: AppBar(
+        title: const Text('Checkout Details'),
+        elevation: 0,
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Session Checkout Overview Summary Card
               Card(
+                elevation: 4,
+                shadowColor: Colors.black.withValues(alpha: 0.05),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Payment method',
-                        style: textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            widget.subject,
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF1E293B),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4051B5).withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '${widget.durationMinutes} mins',
+                              style: const TextStyle(
+                                color: Color(0xFF4051B5),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Transfer using InstaPay to this number:',
-                        style: textTheme.bodyMedium,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_today_rounded, size: 16, color: Color(0xFF64748B)),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${widget.date} @ ${widget.timeDisplay}',
+                            style: const TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      SelectableText(
-                        _instaPayNumber,
-                        style: textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'Session fee: \$${widget.amount.toStringAsFixed(2)}',
-                        style: textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Duration: ${widget.durationMinutes} minutes (${widget.slotCount} slot${widget.slotCount > 1 ? 's' : ''})',
-                        style: textTheme.bodySmall,
+                      const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Total Amount Due',
+                            style: TextStyle(fontSize: 14, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            '\$${widget.amount.toStringAsFixed(2)}',
+                            style: textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF4051B5),
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+
               Text(
-                'Payment proof',
+                'Select Payment Method',
                 style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF1E293B),
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
-                'Upload your screenshot to Google Drive (or similar) and paste the shareable link below:',
-                style: textTheme.bodySmall?.copyWith(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _screenshotUrlController,
-                enabled: !_submitting,
-                decoration: const InputDecoration(
-                  labelText: 'Screenshot image URL',
-                  hintText:
-                      'Paste the direct image link here (e.g., https://drive.google.com/...)',
-                  suffixIcon: Icon(Icons.link_outlined),
-                ),
-                minLines: 2,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _timeController,
-                readOnly: true,
-                onTap: _submitting ? null : _pickTransferDateTime,
-                decoration: const InputDecoration(
-                  labelText: 'Transfer time',
-                  hintText: 'Select transfer date and time',
-                  suffixIcon: Icon(Icons.schedule_outlined),
-                ),
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: _noteController,
-                enabled: !_submitting,
-                decoration: const InputDecoration(
-                  labelText: 'Reference / note (optional)',
-                  hintText: 'Transaction reference, sender name, etc.',
-                ),
-                minLines: 2,
-                maxLines: 3,
-              ),
-              const SizedBox(height: 28),
-              SizedBox(
-                width: double.infinity,
-                child: PressableScale(
-                  child: ElevatedButton(
-                    onPressed: _submitting ? null : _submit,
-                    child: _submitting
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Submit payment for verification'),
+
+              // Payment Selection Row
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildMethodTab(
+                      id: 'card',
+                      title: 'Direct Card',
+                      subtitle: 'Visa / Mastercard',
+                      icon: Icons.credit_card_rounded,
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildMethodTab(
+                      id: 'instapay',
+                      title: 'InstaPay',
+                      subtitle: 'Manual Transfer',
+                      icon: Icons.account_balance_wallet_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Conditional Forms Display
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _selectedMethod == 'card' 
+                  ? _buildCreditCardForm(textTheme)
+                  : _buildInstaPayForm(textTheme),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMethodTab({
+    required String id,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    final isSelected = _selectedMethod == id;
+    final themeColor = id == 'card' ? const Color(0xFF4051B5) : Colors.teal;
+
+    return PressableScale(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedMethod = id),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isSelected ? themeColor : const Color(0xFFE2E8F0),
+              width: isSelected ? 2.5 : 1,
+            ),
+            boxShadow: isSelected 
+              ? [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.12),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  )
+                ]
+              : null,
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isSelected ? themeColor.withValues(alpha: 0.1) : const Color(0xFFE2E8F0),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  icon,
+                  color: isSelected ? themeColor : const Color(0xFF64748B),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: isSelected ? const Color(0xFF1E293B) : const Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey[600],
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCreditCardForm(TextTheme textTheme) {
+    final rawNumber = _cardNumberController.text.replaceAll(' ', '');
+    final cardType = _detectCardType(rawNumber);
+
+    return Column(
+      key: const ValueKey('card_form'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Reactive Credit Card Design mockup
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          height: 190,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1E1B4B), Color(0xFF312E81)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF1E1B4B).withValues(alpha: 0.25),
+                blurRadius: 16,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: _isCvvFocused
+              ? _buildCardBack()
+              : _buildCardFront(rawNumber, cardType),
+        ),
+        const SizedBox(height: 24),
+
+        // Text Fields
+        TextField(
+          controller: _cardNameController,
+          enabled: !_submitting,
+          keyboardType: TextInputType.name,
+          textCapitalization: TextCapitalization.words,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.person_outline_rounded, color: Color(0xFF64748B)),
+            labelText: 'Cardholder Name',
+            hintText: 'John Doe',
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        TextField(
+          controller: _cardNumberController,
+          enabled: !_submitting,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            CardNumberInputFormatter(),
+          ],
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.payment_rounded, color: Color(0xFF64748B)),
+            labelText: 'Card Number',
+            hintText: '4111 2222 3333 4444',
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            suffixIcon: Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: Icon(
+                cardType == 'Visa' 
+                  ? Icons.credit_card_rounded 
+                  : (cardType == 'Mastercard' ? Icons.filter_b_and_w_rounded : Icons.credit_card),
+                color: const Color(0xFF4051B5),
+              ),
+            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _cardExpiryController,
+                enabled: !_submitting,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  CardExpiryInputFormatter(),
+                ],
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.date_range_rounded, color: Color(0xFF64748B)),
+                  labelText: 'Expiry Date',
+                  hintText: 'MM/YY',
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _cardCvvController,
+                focusNode: _cvvFocusNode,
+                enabled: !_submitting,
+                obscureText: true,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.security_rounded, color: Color(0xFF64748B)),
+                  labelText: 'CVV',
+                  hintText: '***',
+                  contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 28),
+
+        SizedBox(
+          width: double.infinity,
+          child: PressableScale(
+            child: ElevatedButton.icon(
+              onPressed: _submitting ? null : _submitCardPayment,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4051B5),
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
+              ),
+              icon: _submitting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : const Icon(Icons.lock_rounded, size: 18),
+              label: Text(
+                _submitting ? 'Processing...' : 'Pay & Confirm Session',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardFront(String rawNumber, String cardType) {
+    String formattedNum = '';
+    for (int i = 0; i < 16; i++) {
+      if (i < rawNumber.length) {
+        formattedNum += rawNumber[i];
+      } else {
+        formattedNum += '•';
+      }
+      if ((i + 1) % 4 == 0 && i != 15) {
+        formattedNum += ' ';
+      }
+    }
+
+    final name = _cardNameController.text.trim();
+    final expiry = _cardExpiryController.text.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Zelp Card',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 14),
+            ),
+            Text(
+              cardType.toUpperCase(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            // Gold Microchip mockup
+            Container(
+              width: 38,
+              height: 26,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD700).withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1),
+              ),
+            ),
+            const SizedBox(width: 10),
+            const Icon(Icons.wifi, color: Colors.white, size: 20),
+          ],
+        ),
+        Text(
+          formattedNum,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.5,
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'CARDHOLDER',
+                    style: TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    name.isEmpty ? 'JOHN DOE' : name.toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                const Text(
+                  'EXPIRES',
+                  style: TextStyle(color: Colors.white54, fontSize: 8, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  expiry.isEmpty ? 'MM/YY' : expiry,
+                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCardBack() {
+    final cvv = _cardCvvController.text.trim();
+    String formattedCvv = '';
+    for (int i = 0; i < 3; i++) {
+      if (i < cvv.length) {
+        formattedCvv += '*';
+      } else {
+        formattedCvv += '•';
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const SizedBox(height: 10),
+        // Magnetic Strip mockup
+        Container(
+          height: 38,
+          color: Colors.black,
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Container(
+                height: 30,
+                color: Colors.white.withValues(alpha: 0.8),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 10),
+                child: const Text(
+                  'XXXX XXXX XXXX',
+                  style: TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: Container(
+                height: 30,
+                color: const Color(0xFFFFD700),
+                alignment: Alignment.center,
+                child: Text(
+                  formattedCvv,
+                  style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              'AUTHORIZED SIGNATURE',
+              style: TextStyle(color: Colors.white54, fontSize: 7, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInstaPayForm(TextTheme textTheme) {
+    return Column(
+      key: const ValueKey('instapay_form'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // InstaPay Info Alert Box
+        Card(
+          elevation: 0,
+          color: Colors.teal.withValues(alpha: 0.05),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.teal.withValues(alpha: 0.2)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.info_outline_rounded, color: Colors.teal, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'How to pay with InstaPay',
+                      style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800, color: Colors.teal),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '1. Open the InstaPay app on your phone.\n'
+                  '2. Make a transfer to the number shown below.\n'
+                  '3. Take a screenshot of the confirmation page.\n'
+                  '4. Upload the screenshot (e.g. to Google Drive, Imgur).\n'
+                  '5. Paste the link here as proof.',
+                  style: TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF1E293B)),
+                ),
+                const Divider(height: 24, color: Color(0xFFE2E8F0)),
+                const Text(
+                  'InstaPay Phone Number:',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    SelectableText(
+                      _instaPayNumber,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: Colors.teal,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        Clipboard.setData(const ClipboardData(text: _instaPayNumber));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Copied number to clipboard!'), duration: Duration(seconds: 1)),
+                        );
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.copy_rounded, color: Colors.teal, size: 20),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Text Fields
+        TextField(
+          controller: _screenshotUrlController,
+          enabled: !_submitting,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF64748B)),
+            labelText: 'Screenshot / Shareable Image Link',
+            hintText: 'https://drive.google.com/open?id=...',
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        TextField(
+          controller: _timeController,
+          readOnly: true,
+          onTap: _submitting ? null : _pickTransferDateTime,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.schedule_rounded, color: Color(0xFF64748B)),
+            labelText: 'Transfer Time',
+            hintText: 'Select date and time',
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        TextField(
+          controller: _noteController,
+          enabled: !_submitting,
+          decoration: InputDecoration(
+            prefixIcon: const Icon(Icons.edit_note_rounded, color: Color(0xFF64748B)),
+            labelText: 'Reference Note (optional)',
+            hintText: 'Transaction reference, sender name, etc.',
+            contentPadding: const EdgeInsets.symmetric(vertical: 16),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          minLines: 2,
+          maxLines: 3,
+        ),
+        const SizedBox(height: 28),
+
+        SizedBox(
+          width: double.infinity,
+          child: PressableScale(
+            child: ElevatedButton(
+              onPressed: _submitting ? null : _submitInstaPay,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(54),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 2,
+              ),
+              child: _submitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text(
+                      'Submit Payment Proof',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// Reusable custom card text formatting classes with zero dependencies
+class CardNumberInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (text.length > 16) text = text.substring(0, 16);
+    
+    var buffer = StringBuffer();
+    for (int i = 0; i < text.length; i++) {
+      buffer.write(text[i]);
+      int nonZeroIndex = i + 1;
+      if (nonZeroIndex % 4 == 0 && nonZeroIndex != text.length) {
+        buffer.write(' ');
+      }
+    }
+    
+    var string = buffer.toString();
+    return newValue.copyWith(
+      text: string,
+      selection: TextSelection.collapsed(offset: string.length),
+    );
+  }
+}
+
+class CardExpiryInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    var text = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (text.length > 4) text = text.substring(0, 4);
+    
+    var buffer = StringBuffer();
+    for (int i = 0; i < text.length; i++) {
+      buffer.write(text[i]);
+      int nonZeroIndex = i + 1;
+      if (nonZeroIndex == 2 && nonZeroIndex != text.length) {
+        buffer.write('/');
+      }
+    }
+    
+    var string = buffer.toString();
+    return newValue.copyWith(
+      text: string,
+      selection: TextSelection.collapsed(offset: string.length),
     );
   }
 }

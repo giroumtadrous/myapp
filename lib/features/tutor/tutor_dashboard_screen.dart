@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutor_auth_repository.dart';
+import '../../theme/app_theme.dart';
 import '../tutor/other_tutors_tab.dart';
 import '../tutor/past_sessions_tab.dart';
 import '../tutor/tutor_availability_screen.dart';
@@ -63,7 +64,7 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(
         titleSpacing: 16,
         title: Row(
@@ -72,12 +73,12 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF4051B5).withValues(alpha: 0.12),
+                color: AppTheme.primary.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
                 Icons.school,
-                color: Color(0xFF4051B5),
+                color: AppTheme.primary,
               ),
             ),
             const SizedBox(width: 10),
@@ -113,8 +114,8 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         height: 70,
-        backgroundColor: Colors.white,
-        indicatorColor: const Color(0xFF4051B5).withValues(alpha: 0.14),
+        backgroundColor: AppTheme.darkSurface,
+        indicatorColor: AppTheme.primary.withValues(alpha: 0.16),
         selectedIndex: _selectedTabIndex,
         onDestinationSelected: (index) {
           setState(() => _selectedTabIndex = index);

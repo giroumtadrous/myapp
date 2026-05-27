@@ -18,39 +18,35 @@ class SocialLoginScreen extends StatefulWidget {
 }
 
 class _SocialLoginScreenState extends State<SocialLoginScreen> {
-  final _authService = AuthService();
-  final _userService = UserService();
+  final AuthService _authService = AuthService();
+  final UserService _userService = UserService();
   bool _loadingGoogle = false;
   bool _loadingApple = false;
 
-  bool get _isAppleAvailable => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  bool get _isAppleAvailable =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
 
   Future<void> _handlePostSignIn(UserCredential? credential) async {
     if (credential == null || credential.user == null) return;
 
     final user = credential.user!;
-    
+
     try {
-      // Check if profile exists and is complete
       final complete = await _authService.isProfileComplete(user.uid);
 
       if (!mounted) return;
 
       if (!complete) {
-        // Redirect to profile completion screen
         Navigator.of(context).pushReplacement(
           AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
         );
         return;
       }
 
-      // Profile is complete, sync FCM token AFTER authentication
       await _userService.syncFcmToken(user.uid);
       await NotificationService.instance.initialize();
 
       if (!mounted) return;
-
-      // Return to root auth wrapper so authStateChanges can render dashboard.
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
@@ -92,94 +88,112 @@ class _SocialLoginScreenState extends State<SocialLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final textTheme = Theme.of(context).textTheme;
+    final width = MediaQuery.of(context).size.width;
+    final maxCardWidth = width > 600 ? 460.0 : double.infinity;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
+      appBar: AppBar(title: const Text('Student sign in')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 430),
-              child: Card(
-                elevation: 8,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const Icon(Icons.school, size: 46, color: Color(0xFF4051B5)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'TutorLink',
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+              constraints: BoxConstraints(maxWidth: maxCardWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Student portal',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in with Google, Apple, or email.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: PressableScale(
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            _loadingGoogle || _loadingApple ? null : _signInWithGoogle,
+                        icon: _loadingGoogle
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.g_mobiledata, size: 26),
+                        label: const Text('Continue with Google'),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
                       ),
-                      const SizedBox(height: 24),
-                      PressableScale(
-                        child: ElevatedButton.icon(
-                          onPressed: _loadingGoogle || _loadingApple ? null : _signInWithGoogle,
-                          icon: _loadingGoogle
+                    ),
+                  ),
+                  if (_isAppleAvailable) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: PressableScale(
+                        child: OutlinedButton.icon(
+                          onPressed:
+                              _loadingGoogle || _loadingApple ? null : _signInWithApple,
+                          icon: _loadingApple
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Icon(Icons.g_mobiledata, size: 26),
-                          label: const Text('Continue with Google'),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(50),
-                            backgroundColor: const Color(0xFF4051B5),
-                            foregroundColor: Colors.white,
+                              : const Icon(Icons.apple, size: 20),
+                          label: const Text('Continue with Apple'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
                           ),
                         ),
                       ),
-                      if (_isAppleAvailable) ...[
-                        const SizedBox(height: 12),
-                        PressableScale(
-                          child: OutlinedButton.icon(
-                            onPressed: _loadingGoogle || _loadingApple ? null : _signInWithApple,
-                            icon: _loadingApple
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.apple),
-                            label: const Text('Continue with Apple'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(50),
-                            ),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 18),
-                      Row(
-                        children: const [
-                          Expanded(child: Divider()),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 10),
-                            child: Text('or'),
-                          ),
-                          Expanded(child: Divider()),
-                        ],
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    children: const [
+                      Expanded(child: Divider()),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text('or'),
                       ),
-                      const SizedBox(height: 8),
-                      TextButton(
+                      Expanded(child: Divider()),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: PressableScale(
+                      child: ElevatedButton.icon(
                         onPressed: _loadingGoogle || _loadingApple
                             ? null
                             : () {
                                 Navigator.of(context).push(
-                                  AppTransitions.slideFromRight(page: const LoginScreen()),
+                                  AppTransitions.slideFromRight(
+                                    page: const LoginScreen(),
+                                  ),
                                 );
                               },
-                        child: const Text('Sign in with Email'),
+                        icon: const Icon(Icons.mail_outline_rounded),
+                        label: const Text('Sign in with email'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                        ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),

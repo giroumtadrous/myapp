@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../../constants/egyptian_universities.dart';
 import '../../services/auth_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
@@ -19,23 +20,26 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _usernameController = TextEditingController();
-  final _institutionController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   final _userService = UserService();
+  String? _selectedInstitution;
 
   bool _isLoading = false;
   bool _isGoogleLoading = false;
 
   static const int _minPasswordLength = 6;
 
+  bool _hasPasswordDigit(String value) => RegExp(r'\d').hasMatch(value);
+
+  bool _hasPasswordLetter(String value) => RegExp(r'[A-Za-z]').hasMatch(value);
+
   @override
   void dispose() {
     _nameController.dispose();
     _usernameController.dispose();
-    _institutionController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -45,7 +49,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _validateInputs() {
     final name = _nameController.text.trim();
     final username = _usernameController.text.trim();
-    final institution = _institutionController.text.trim();
+    final institution = (_selectedInstitution ?? '').trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
@@ -62,8 +66,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (username.contains(' ')) {
       return 'Username cannot contain spaces.';
     }
+    if (!RegExp(r'^[a-zA-Z0-9._]+$').hasMatch(username)) {
+      return 'Username can only use letters, numbers, dot, and underscore.';
+    }
     if (email.isEmpty) {
       return 'Please enter your email.';
+    }
+    if (!_authService.isValidEmail(email)) {
+      return 'Please enter a valid email address.';
     }
     if (institution.isEmpty) {
       return 'Please enter your university or high school.';
@@ -73,6 +83,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
     if (password.length < _minPasswordLength) {
       return 'Password must be at least $_minPasswordLength characters.';
+    }
+    if (!_hasPasswordLetter(password) || !_hasPasswordDigit(password)) {
+      return 'Password must include at least one letter and one number.';
     }
     if (confirmPassword.isEmpty) {
       return 'Please confirm your password.';
@@ -93,14 +106,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
 
     final name = _nameController.text.trim();
-    final username = _usernameController.text.trim();
-    final institution = _institutionController.text.trim();
+    final username = _authService.normalizeUsername(_usernameController.text);
+    final institution = _selectedInstitution!.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     setState(() => _isLoading = true);
 
     try {
+      final usernameAvailable = await _authService.isUsernameAvailable(username);
+      if (!usernameAvailable) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('That username is already taken.')),
+        );
+        return;
+      }
+
       // Create Firebase Auth user
       final credential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: email, password: password);
@@ -122,18 +144,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'updatedAt': FieldValue.serverTimestamp(),
         'authProvider': 'email',
       }, SetOptions(merge: true));
+      // Proceed to profile completion flow instead of email verification.
+      final complete = await _authService.isProfileComplete(user.uid);
+      if (!mounted) return;
+
+      if (!complete) {
+        Navigator.of(context).pushReplacement(
+          AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
+        );
+        return;
+      }
 
       await _userService.syncFcmToken(user.uid);
-
-      // Initialize notification service for this user
       await NotificationService.instance.initialize();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account created successfully!')),
-        );
+        Navigator.of(context).popUntil((route) => route.isFirst);
       }
-      // authStateChanges() in main.dart handles navigation to MainNavigationScreen
     } on FirebaseAuthException catch (e) {
       String message = 'Failed to create account. Please try again.';
       if (e.code == 'email-already-in-use') {
@@ -276,13 +303,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  Text('University / High School', style: textTheme.labelLarge),
+                  Text('University', style: textTheme.labelLarge),
                   const SizedBox(height: 6),
-                  TextField(
-                    controller: _institutionController,
+                  DropdownButtonFormField<String>(
+                    value: _selectedInstitution,
+                    isExpanded: true,
                     decoration: const InputDecoration(
-                      hintText: 'Cairo University / Springfield High School',
+                      hintText: 'Select your university',
                     ),
+                    items: egyptianUniversities
+                        .map(
+                          (university) => DropdownMenuItem<String>(
+                            value: university,
+                            child: Text(university),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (_isLoading || _isGoogleLoading)
+                        ? null
+                        : (value) => setState(() => _selectedInstitution = value),
                   ),
                   const SizedBox(height: 16),
                   Text('Password', style: textTheme.labelLarge),

@@ -5,6 +5,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 import 'features/auth/auth_wrapper.dart';
 import 'services/notification_service.dart';
+import 'services/theme_service.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,58 +16,40 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final baseTheme = ThemeData(
-      useMaterial3: true,
-      colorSchemeSeed: Colors.indigo,
-    );
+  State<MyApp> createState() => _MyAppState();
+}
 
+class _MyAppState extends State<MyApp> {
+  final ThemeService _themeService = ThemeService();
+
+  @override
+  void initState() {
+    super.initState();
+    _themeService.addListener(_handleThemeChanged);
+  }
+
+  @override
+  void dispose() {
+    _themeService.removeListener(_handleThemeChanged);
+    super.dispose();
+  }
+
+  void _handleThemeChanged() {
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PeerTutor',
+      title: 'Zelp',
       debugShowCheckedModeBanner: false,
-      theme: baseTheme.copyWith(
-        scaffoldBackgroundColor: Colors.grey[50],
-        cardTheme: CardThemeData(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.grey.shade300),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(
-              color: baseTheme.colorScheme.primary,
-              width: 1.5,
-            ),
-          ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            textStyle: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-        ),
-      ),
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: _themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: const AuthWrapper(),
     );
   }

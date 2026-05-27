@@ -196,6 +196,174 @@ class PaymentRepository {
     }
   }
 
+  Future<void> submitCardPayment({
+    required String sessionId,
+    required String studentId,
+    required String tutorId,
+    required String subject,
+    required DateTime sessionDateTime,
+    required String date,
+    required String time,
+    required String timeDisplay,
+    required double amount,
+    required int durationMinutes,
+    required int slotCount,
+    required List<String> reservedSlots,
+    required String cardholderName,
+    required String cardNumber,
+  }) async {
+    try {
+      if (reservedSlots.isEmpty) {
+        throw Exception('At least one reserved slot is required.');
+      }
+
+      final paymentRef = _firestore.collection('payments').doc();
+      final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+      final overlapping = await _firestore
+          .collection('sessions')
+          .where('tutorId', isEqualTo: tutorId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
+      final studentOverlapping = await _firestore
+          .collection('sessions')
+          .where('studentId', isEqualTo: studentId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
+      for (final doc in overlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception('This time slot is no longer available.');
+        }
+      }
+
+      for (final doc in studentOverlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception(
+            'You already have another session at this time. Please choose a different slot.',
+          );
+        }
+      }
+
+      final last4Digits = cardNumber.length >= 4
+          ? cardNumber.substring(cardNumber.length - 4)
+          : 'XXXX';
+
+      await _firestore
+          .runTransaction((tx) async {
+            try {
+              final existingSession = await tx.get(sessionRef);
+              if (existingSession.exists) {
+                final data = existingSession.data() ?? <String, dynamic>{};
+                final existingStatus = (data['status'] ?? '').toString();
+
+                if (blockingStatuses.contains(existingStatus)) {
+                  throw Exception('This time slot is no longer available.');
+                }
+              }
+              final existingData =
+                  existingSession.data() ?? <String, dynamic>{};
+              final existingRoomName = (existingData['roomName'] ?? '')
+                  .toString();
+              final roomName = existingRoomName.isNotEmpty
+                  ? existingRoomName
+                  : _generateRandomRoomName();
+              final existingMeetLink = (existingData['meetLink'] ?? '')
+                  .toString();
+              final meetLink = existingMeetLink.isNotEmpty
+                  ? existingMeetLink
+                  : _jitsiMeetLink(roomName);
+
+              tx.set(paymentRef, {
+                'studentId': studentId,
+                'tutorId': tutorId,
+                'sessionId': sessionId,
+                'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
+                'transferTime': Timestamp.fromDate(DateTime.now()),
+                'screenshotUrl': 'visa_mastercard',
+                'status': 'approved',
+                'note': 'Card Payment: Visa/Mastercard (Cardholder: $cardholderName, Card: **** **** **** $last4Digits)',
+                'createdAt': FieldValue.serverTimestamp(),
+                'roomName': roomName,
+              });
+
+              final sessionData = <String, dynamic>{
+                'tutorId': tutorId,
+                'studentId': studentId,
+                'subject': subject,
+                'date': date,
+                'time': time,
+                'timeDisplay': timeDisplay,
+                'dateTime': Timestamp.fromDate(sessionDateTime),
+                'hourlyRate': amount,
+                'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
+                'paymentId': paymentRef.id,
+                'meetLink': meetLink,
+                'status': 'confirmed',
+                'roomName': roomName,
+              };
+
+              if (existingSession.exists) {
+                tx.update(sessionRef, {
+                  ...sessionData,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+              } else {
+                tx.set(sessionRef, {
+                  ...sessionData,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+              }
+
+              tx.set(_firestore.collection('notifications').doc(), {
+                'userId': studentId,
+                'title': 'Payment Success',
+                'message': 'Your direct card payment of \$$amount has been approved. Your session is confirmed!',
+                'read': false,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+            } catch (e) {
+              rethrow;
+            }
+          })
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException(
+                'Booking transaction timed out. Please try again.',
+              );
+            },
+          );
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? 'Firebase error while processing payment.');
+    } on TimeoutException catch (e) {
+      throw Exception(e.message ?? 'The request timed out. Please try again.');
+    } catch (_) {
+      rethrow;
+    }
+  }
+
   Stream<List<PaymentModel>> pendingPayments() {
     return _firestore
         .collection('payments')

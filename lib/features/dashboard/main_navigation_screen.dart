@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../booking/bookings_screen.dart';
-import 'dashboard_screen.dart';
-import '../explore/explore_screen.dart';
-import '../messages/messages_screen.dart';
-import '../profile/profile_screen.dart';
+import '../../theme/app_theme.dart';
+import '../booking/zelp_sessions_screen.dart';
+import 'zelp_home_screen.dart';
+import '../explore/zelp_explore_screen.dart';
+import '../messages/zelp_messages_screen.dart';
+import '../profile/zelp_profile_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -17,11 +18,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
 
   late final List<Widget> _pages = const [
-    DashboardScreen(),
-    ExploreScreen(),
-    BookingsScreen(),
-    MessagesScreen(),
-    ProfileScreen(),
+    ZelpHomeScreen(),
+    ZelpExploreScreen(),
+    ZelpSessionsScreen(),
+    ZelpMessagesScreen(),
+    ZelpProfileScreen(),
   ];
 
   void _onTabSelected(int index) {
@@ -33,8 +34,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 260),
         switchInCurve: Curves.easeOutCubic,
@@ -58,33 +61,33 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         selectedIndex: _currentIndex,
         onDestinationSelected: _onTabSelected,
         height: 72,
-        indicatorColor: const Color(0xFF4051B5).withValues(alpha: 0.14),
-        backgroundColor: Colors.white,
+        indicatorColor: AppTheme.primary.withValues(alpha: 0.16),
+        backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
-            label: 'Home',
+            label: 'Learn',
           ),
           NavigationDestination(
             icon: Icon(Icons.explore_outlined),
             selectedIcon: Icon(Icons.explore),
-            label: 'Explore',
+            label: 'Discover',
           ),
           NavigationDestination(
             icon: Icon(Icons.event_note_outlined),
             selectedIcon: Icon(Icons.event_note),
-            label: 'Sessions',
+            label: 'Schedule',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
             selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Messages',
+            label: 'Inbox',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: 'Profile',
+            label: 'Vault',
           ),
         ],
       ),

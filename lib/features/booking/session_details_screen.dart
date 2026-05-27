@@ -7,9 +7,9 @@ import '../../models/session_model.dart';
 import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/jitsi_meet_service.dart';
-import '../../utils/session_status_utils.dart';
+import '../../theme/app_theme.dart';
 import '../../widgets/app_loading_indicator.dart';
-import '../../widgets/pressable_scale.dart';
+import '../../widgets/zelp_ui_components.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final String sessionId;
@@ -226,8 +226,14 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
-      appBar: AppBar(title: const Text('Session Details')),
+      backgroundColor: AppTheme.background,
+      appBar: AppBar(
+        title: const Text('Session Details'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppTheme.textPrimary,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: StreamBuilder<SessionDetailsData?>(
         stream: _sessionRepository.streamSessionDetails(widget.sessionId),
         builder: (context, snapshot) {
@@ -257,47 +263,94 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           final canJoin = _sessionRepository.canJoinSession(session);
           final canCancel = _canCancel(session);
           final canReview = _canReview(session, currentUser);
-          final statusColor = sessionStatusColor(session.status);
-
           return Column(
             children: [
               Expanded(
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   children: [
-                    // Layout inspired by design/bookedsession.png(.html), data remains dynamic.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            session.subject,
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: AppTheme.buttonGradient,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: AppTheme.glow(alpha: 0.2),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  session.subject,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.background,
+                                  ),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.background.withValues(alpha: 0.14),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  _titleCase(session.status).toUpperCase(),
+                                  style: const TextStyle(
+                                    color: AppTheme.background,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            details.tutor.name,
                             style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
+                              color: AppTheme.background,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: [
+                              _InfoChip(
+                                icon: Icons.schedule_rounded,
+                                label: '${DateFormat.yMMMd().format(session.dateTime)} · ${DateFormat.jm().format(session.dateTime)}',
+                              ),
+                              _InfoChip(
+                                icon: Icons.timelapse_rounded,
+                                label: '${session.durationMinutes} min',
+                              ),
+                              _InfoChip(
+                                icon: Icons.video_call_rounded,
+                                label: 'In-App session',
+                              ),
+                            ],
                           ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _titleCase(session.status).toUpperCase(),
-                            style: TextStyle(
-                              color: statusColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+                    const Text(
+                      'SESSION OVERVIEW',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.textSecondary,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     _SectionCard(
                       child: Row(
                         children: [
@@ -308,47 +361,35 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                                 Text(
                                   session.subject,
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 18,
+                                    color: AppTheme.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
                                   'Tutor session',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(color: const Color(0xFF64748B)),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                                 ),
                                 const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.schedule,
-                                      size: 16,
-                                      color: Color(0xFF4051B5),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      '${DateFormat.yMMMd().format(session.dateTime)}, ${DateFormat.jm().format(session.dateTime)} (${session.durationMinutes} min)',
-                                      style: const TextStyle(
-                                        color: Color(0xFF475569),
-                                      ),
-                                    ),
-                                  ],
+                                Text(
+                                  '${DateFormat.yMMMd().format(session.dateTime)}, ${DateFormat.jm().format(session.dateTime)}',
+                                  style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
                           ),
                           Container(
-                            width: 74,
-                            height: 74,
+                            width: 68,
+                            height: 68,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFEFF2FF),
-                              borderRadius: BorderRadius.circular(14),
+                              gradient: AppTheme.buttonGradient,
+                              borderRadius: BorderRadius.circular(18),
                             ),
                             child: const Icon(
-                              Icons.flutter_dash,
-                              color: Color(0xFF4051B5),
-                              size: 34,
+                              Icons.school_rounded,
+                              color: AppTheme.background,
+                              size: 32,
                             ),
                           ),
                         ],
@@ -360,7 +401,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
+                        color: AppTheme.textSecondary,
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -496,45 +537,25 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
               ),
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
-                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                decoration: BoxDecoration(
+                  color: AppTheme.surface,
+                  border: Border(top: AppTheme.border()),
                 ),
                 child: Column(
                   children: [
                     SizedBox(
                       width: double.infinity,
-                      child: PressableScale(
-                        child: FilledButton.icon(
-                          onPressed: (canJoin && !_isJoining)
-                              ? () => _joinSession(session)
-                              : null,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4051B5),
-                            minimumSize: const Size.fromHeight(52),
-                          ),
-                          icon: _isJoining
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.videocam_outlined),
-                          label: Text(_isJoining ? 'Joining...' : 'Join Session'),
-                        ),
+                      child: ZelpPrimaryButton(
+                        label: _isJoining ? 'Joining...' : 'Join Session',
+                        icon: _isJoining ? null : Icons.videocam_outlined,
+                        onTap: (canJoin && !_isJoining) ? () => _joinSession(session) : null,
                       ),
                     ),
                     if (!canJoin) ...[
                       const SizedBox(height: 8),
                       Text(
-                        'Join is enabled when session status is approved and within 15 minutes before start until session end.',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.grey[600]),
+                        'Join is enabled when the session is approved and within 15 minutes before it starts until it ends.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -542,25 +563,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     if (canCancel)
                       SizedBox(
                         width: double.infinity,
-                        child: PressableScale(
-                          child: TextButton.icon(
-                            onPressed: _isCanceling
-                                ? null
-                                : () => _cancelSession(session),
-                            icon: _isCanceling
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.cancel_outlined),
-                            label: Text(
-                              _isCanceling ? 'Cancelling...' : 'Cancel Session',
-                            ),
-                            style: TextButton.styleFrom(
-                              foregroundColor: const Color(0xFFDC2626),
-                            ),
-                          ),
+                        child: ZelpSecondaryButton(
+                          label: _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                          icon: _isCanceling ? null : Icons.cancel_outlined,
+                          onTap: _isCanceling ? null : () => _cancelSession(session),
                         ),
                       ),
                   ],
@@ -589,9 +595,9 @@ class _SectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.fromBorderSide(AppTheme.border()),
       ),
       padding: const EdgeInsets.all(14),
       child: child,
@@ -610,8 +616,9 @@ class _MetaBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.fromBorderSide(AppTheme.border()),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -620,14 +627,50 @@ class _MetaBox extends StatelessWidget {
             title.toUpperCase(),
             style: const TextStyle(
               fontSize: 10,
-              color: Color(0xFF64748B),
+              color: AppTheme.textSecondary,
               fontWeight: FontWeight.w700,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w700),
+            style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppTheme.background.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.fromBorderSide(
+          BorderSide(color: AppTheme.background.withValues(alpha: 0.18)),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppTheme.background),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppTheme.background,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

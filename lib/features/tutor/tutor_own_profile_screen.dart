@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/tutor_model.dart';
 import '../../repositories/tutors_repository.dart';
+import '../../services/theme_service.dart';
+import '../../theme/app_theme.dart';
 
 /// The profile screen shown to the currently logged-in tutor.
 /// Displays their own name, photo, bio, subjects, and rating.
@@ -71,7 +73,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
+      backgroundColor: AppTheme.darkBackground,
       appBar: AppBar(title: const Text('Tutor Profile')),
       body: StreamBuilder<Tutor?>(
         stream: _repo.getTutorById(widget.tutorId),
@@ -154,7 +156,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                                 bottom: 0,
                                 child: FloatingActionButton.small(
                                   onPressed: () {},
-                                  backgroundColor: const Color(0xFF4051B5),
+                                  backgroundColor: AppTheme.primary,
                                   child: const Icon(Icons.photo_camera, color: Colors.white),
                                 ),
                               ),
@@ -353,13 +355,13 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFEFF2FF),
+                                color: AppTheme.primary.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(20),
                               ),
                               child: Text(
                                 s,
                                 style: const TextStyle(
-                                  color: Color(0xFF4051B5),
+                                  color: AppTheme.primary,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
                                 ),
@@ -368,6 +370,27 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                           )
                           .toList(),
                     ),
+
+                  const SizedBox(height: 16),
+                  _SectionLabel(label: 'Preferences'),
+                  const SizedBox(height: 8),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.brightness_4_outlined),
+                      title: const Text('Dark Mode'),
+                      trailing: StatefulBuilder(
+                        builder: (context, setState) {
+                          return Switch(
+                            value: ThemeService().isDarkMode,
+                            onChanged: (value) {
+                              ThemeService().setDarkMode(value);
+                              setState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 40),
                 ],
@@ -412,12 +435,18 @@ class _ProfileStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFDDE3EE)),
+        border: Border.all(
+          color: isDark 
+            ? AppTheme.primary.withValues(alpha: 0.22)
+            : AppTheme.primary.withValues(alpha: 0.14),
+        ),
       ),
       child: Column(
         children: [
@@ -429,15 +458,15 @@ class _ProfileStatCard extends StatelessWidget {
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
               ),
               if (icon != null)
-                Icon(icon, size: 16, color: const Color(0xFFF59E0B)),
+                Icon(icon, size: 16, color: AppTheme.primary),
             ],
           ),
           Text(
             title.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF64748B),
+              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
             ),
           ),
         ],

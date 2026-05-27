@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../repositories/tutor_auth_repository.dart';
 import '../../services/auth_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/pressable_scale.dart';
@@ -47,6 +48,8 @@ class AuthWrapper extends StatelessWidget {
               if (tutorSnapshot.data != null) {
                 return TutorDashboardScreen(tutorId: tutorSnapshot.data!);
               }
+
+              // No longer require email verification; continue to dashboard flow.
 
               if (!authService.isSocialProviderUser(user)) {
                 return const MainNavigationScreen();
@@ -101,106 +104,166 @@ class SignInPage extends StatelessWidget {
     final width = MediaQuery.of(context).size.width;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
+      appBar: AppBar(title: const Text('Choose account type')),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: width > 600 ? 460 : 420),
-              child: Card(
-                elevation: 10,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Welcome to Zelp',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pick how you want to continue.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  RoleCard(
+                    title: 'Student Portal',
+                    description: 'Find tutors and book sessions.',
+                    icon: Icons.person_rounded,
+                    themeColor: const Color(0xFF4051B5),
+                    onTap: () {
+                      Navigator.of(context).push(
+                        AppTransitions.slideFromRight(
+                          page: const SocialLoginScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  RoleCard(
+                    title: 'Tutor Workspace',
+                    description: 'Manage sessions and availability.',
+                    icon: Icons.school_rounded,
+                    themeColor: AppTheme.primary,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        AppTransitions.slideFromRight(
+                          page: const TutorLoginScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class RoleCard extends StatefulWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color themeColor;
+  final VoidCallback onTap;
+
+  const RoleCard({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.themeColor,
+    required this.onTap,
+  });
+
+  @override
+  State<RoleCard> createState() => _RoleCardState();
+}
+
+class _RoleCardState extends State<RoleCard> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: _isHovered ? widget.themeColor : const Color(0xFFE2E8F0),
+              width: _isHovered ? 2.0 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: _isHovered
+                    ? widget.themeColor.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.04),
+                blurRadius: _isHovered ? 16 : 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              borderRadius: BorderRadius.circular(14),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: widget.themeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        widget.icon,
+                        color: widget.themeColor,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const CircleAvatar(
-                            radius: 14,
-                            backgroundColor: Color(0xFF4051B5),
-                            child: Icon(
-                              Icons.school,
-                              color: Colors.white,
-                              size: 16,
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E293B),
+                              letterSpacing: -0.2,
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(height: 4),
                           Text(
-                            'TutorLink',
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
+                            widget.description,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF64748B),
+                              height: 1.4,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Welcome back',
-                        textAlign: TextAlign.center,
-                        style: textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Choose your account type to continue',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PressableScale(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                AppTransitions.slideFromRight(
-                                  page: const SocialLoginScreen(),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4051B5),
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            icon: const Icon(Icons.person),
-                            label: const Text('Student'),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: PressableScale(
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Navigator.of(context).push(
-                                AppTransitions.slideFromRight(
-                                  page: const TutorLoginScreen(),
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size.fromHeight(52),
-                            ),
-                            icon: const Icon(Icons.school),
-                            label: const Text('Tutor'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(Icons.arrow_forward_rounded, size: 18, color: widget.themeColor),
+                  ],
                 ),
               ),
             ),

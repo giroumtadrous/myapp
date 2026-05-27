@@ -1,13 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:myapp/widgets/session_card.dart';
+import '../../widgets/zelp_ui_components.dart';
 
 import '../admin/payment_verification_screen.dart';
 import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../services/user_service.dart';
+import '../../services/theme_service.dart';
 import '../booking/session_details_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -237,6 +238,34 @@ class _ProfileContent extends StatelessWidget {
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
+            'Preferences',
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.brightness_4_outlined),
+            title: const Text('Dark Mode'),
+            trailing: StatefulBuilder(
+              builder: (context, setState) {
+                return Switch(
+                  value: ThemeService().isDarkMode,
+                  onChanged: (value) {
+                    ThemeService().setDarkMode(value);
+                    setState(() {});
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
             'Danger zone',
             style: textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
@@ -281,17 +310,6 @@ class _PastSessionsList extends StatelessWidget {
     required this.studentId,
   });
 
-  Color _statusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
@@ -319,27 +337,35 @@ class _PastSessionsList extends StatelessWidget {
             }
             return Column(
               children: sessions.map((s) {
-                final dateStr = DateFormat.yMMMd().format(s.dateTime);
                 final timeStr = DateFormat.jm().format(s.dateTime);
+                final dayStr = DateFormat.d().format(s.dateTime);
+                final monthStr = DateFormat.MMM().format(s.dateTime);
+                final durationStr = '${s.durationMinutes} mins';
+
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
-                  child: SessionCard(
-                    tutorName: s.tutorName ?? s.tutorId,
-                    subject: s.subject,
-                    date: dateStr,
-                    sessionDateTime: s.dateTime,
-                    timeRange: timeStr,
-                    statusLabel: s.status,
-                    statusColor: _statusColor(s.status),
-                    isActive: false,
-                    isPast: true,
-                    durationMinutes: s.durationMinutes,
-                    onTap: () {
+                  child: ZelpSessionCard(
+                    data: ZelpSessionCardData(
+                      tutorName: s.tutorName ?? s.tutorId,
+                      subject: s.subject,
+                      time: timeStr,
+                      duration: durationStr,
+                      status: s.status,
+                      day: dayStr,
+                      month: monthStr,
+                      joinLabel: 'View Details',
+                      secondaryLabel: 'Rebook',
+                      enabled: true,
+                    ),
+                    onPrimaryTap: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => SessionDetailsScreen(sessionId: s.id),
                         ),
                       );
+                    },
+                    onSecondaryTap: () {
+                      // Rebook or other action
                     },
                   ),
                 );

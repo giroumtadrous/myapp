@@ -1,12 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../features/auth/login_screen.dart';
 import '../../repositories/tutor_auth_repository.dart';
 import '../../services/notification_service.dart';
 import '../../services/user_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
+import 'login_screen.dart';
 
 class TutorLoginScreen extends StatefulWidget {
   const TutorLoginScreen({super.key});
@@ -50,9 +50,7 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
   Future<void> _signIn() async {
     final validationError = _validateInputs();
     if (validationError != null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(validationError)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(validationError)));
       return;
     }
 
@@ -67,15 +65,11 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
         password: password,
       );
 
-      // Update FCM token for the logged-in tutor
       final userService = UserService();
-      await userService.updateFCMToken(user.uid);
-
-      // Initialize notification service
+      await userService.syncFcmToken(user.uid);
       await NotificationService.instance.initialize();
 
       if (mounted) {
-        // Return to root auth wrapper so authStateChanges can render tutor dashboard.
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     } on FirebaseAuthException catch (e) {
@@ -88,20 +82,15 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
         message = 'The email address is not valid.';
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } catch (e) {
       String message = e.toString();
       if (message.contains('not registered as a tutor')) {
-        message =
-            'This account is not registered as a tutor. Please contact support.';
+        message = 'This account is not registered as a tutor. Please contact support.';
       }
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(message)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } finally {
       if (mounted) {
@@ -114,175 +103,110 @@ class _TutorLoginScreenState extends State<TutorLoginScreen> {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final width = MediaQuery.of(context).size.width;
+    final maxCardWidth = width > 600 ? 460.0 : double.infinity;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: width > 600 ? 460 : 420),
-            child: Card(
-              elevation: 10,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(Icons.arrow_back),
-                        ),
-                        const Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: Color(0xFF4051B5),
-                              child: Icon(
-                                Icons.school,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Text(
-                              'Tutor Portal',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 48),
-                      ],
+      appBar: AppBar(title: const Text('Tutor log in')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxCardWidth),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Tutor workspace',
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 128,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4051B5).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.cast_for_education,
-                        size: 54,
-                        color: Color(0xFF4051B5),
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sign in to manage sessions and availability.',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[700],
                     ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Tutor sign in',
-                      textAlign: TextAlign.center,
-                      style: textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text('Email', style: textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    enabled: !_isLoading,
+                    decoration: const InputDecoration(
+                      hintText: 'you@example.com',
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Access your sessions, requests, and availability',
-                      textAlign: TextAlign.center,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      enabled: !_isLoading,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.mail_outline),
-                        hintText: 'Email address',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText: _obscureText,
-                      enabled: !_isLoading,
-                      decoration: InputDecoration(
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        hintText: 'Password',
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(() => _obscureText = !_obscureText);
-                          },
-                          icon: Icon(
-                            _obscureText
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Password', style: textTheme.labelLarge),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: _obscureText,
+                    enabled: !_isLoading,
+                    decoration: InputDecoration(
+                      hintText: 'Enter your password',
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => _obscureText = !_obscureText),
+                        icon: Icon(
+                          _obscureText
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: PressableScale(
-                        child: ElevatedButton.icon(
-                          onPressed: _isLoading ? null : _signIn,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4051B5),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(52),
-                          ),
-                          icon: _isLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
+                  ),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    child: PressableScale(
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _signIn,
+                        child: _isLoading
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Log in as tutor'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'Need student access? ',
+                        style: TextStyle(color: Colors.grey[700]),
+                      ),
+                      InkWell(
+                        onTap: _isLoading
+                            ? null
+                            : () {
+                                Navigator.of(context).push(
+                                  AppTransitions.slideFromRight(
+                                    page: const LoginScreen(),
                                   ),
-                                )
-                              : const Icon(Icons.arrow_forward),
-                          label: Text(
-                            _isLoading ? 'Signing in...' : 'Log in as Tutor',
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Need student access? ',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                        InkWell(
-                          onTap: _isLoading
-                              ? null
-                              : () {
-                                  Navigator.of(context).push(
-                                    AppTransitions.slideFromRight(
-                                      page: const LoginScreen(),
-                                    ),
-                                  );
-                                },
+                                );
+                              },
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                           child: Text(
                             'Student log in',
                             style: TextStyle(
-                              color: _isLoading
-                                  ? Colors.grey
-                                  : const Color(0xFF4051B5),
+                              color: Color(0xFF4051B5),
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
