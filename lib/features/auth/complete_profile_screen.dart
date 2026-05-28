@@ -137,10 +137,31 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Complete Your Profile')),
-      body: SafeArea(
-        child: Center(
+    return WillPopScope(
+      onWillPop: () {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+          return Future.value(true);
+        }
+        return FirebaseAuth.instance.signOut().then((_) => false);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Complete Your Profile'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                FirebaseAuth.instance.signOut();
+              }
+            },
+            tooltip: 'Back',
+          ),
+        ),
+        body: SafeArea(
+          child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: ConstrainedBox(
@@ -228,6 +249,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }

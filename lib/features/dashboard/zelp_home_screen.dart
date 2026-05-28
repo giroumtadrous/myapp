@@ -12,6 +12,7 @@ import '../../widgets/pressable_scale.dart';
 import '../../widgets/zelp_ui_components.dart';
 import '../booking/zelp_tutor_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
+import '../profile/zelp_profile_screen.dart';
 
 class ZelpHomeScreen extends StatefulWidget {
   const ZelpHomeScreen({super.key});
@@ -49,7 +50,9 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
               // Top Navigation Row
               Row(
                 children: [
-                  _HeaderIconButton(icon: Icons.menu, onTap: () {}),
+                  // Notification bell on the left
+                  _NotificationBell(paymentRepository: _paymentRepository, currentUser: currentUser),
+                  const SizedBox(width: 8),
                   const Spacer(),
                   const Text(
                     'Zelp',
@@ -61,18 +64,35 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
                     ),
                   ),
                   const Spacer(),
-                  // Notification bell next to profile
-                  _NotificationBell(paymentRepository: _paymentRepository, currentUser: currentUser),
-                  const SizedBox(width: 8),
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      shape: BoxShape.circle,
-                      border: Border.fromBorderSide(AppTheme.border(width: 1.2)),
+                  PressableScale(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(21),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const ZelpProfileScreen(),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: AppTheme.surface,
+                            shape: BoxShape.circle,
+                            border: Border.fromBorderSide(
+                              AppTheme.border(width: 1.2),
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.person_outline,
+                            color: AppTheme.primary,
+                          ),
+                        ),
+                      ),
                     ),
-                    child: const Icon(Icons.person_outline, color: AppTheme.primary),
                   ),
                 ],
               ),
@@ -260,107 +280,6 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  const _HeaderIconButton({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.fromBorderSide(AppTheme.border()),
-        ),
-        child: Icon(icon, color: AppTheme.primary),
-      ),
-    );
-  }
-}
-/*
-class _ContinueLearningCard extends StatelessWidget {
-  const _ContinueLearningCard({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: AppTheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.fromBorderSide(AppTheme.border()),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: const Text(
-                      'Continue Learning',
-                      style: TextStyle(
-                        color: AppTheme.primary,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Calculus II: Integration by Parts',
-                    style: TextStyle(
-                      color: AppTheme.textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      height: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Your next lesson is ready. Pick up right where you left off with a focused 25 minute session.',
-                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 13, height: 1.4),
-                  ),
-                  const SizedBox(height: 16),
-                  const ZelpPrimaryButton(label: 'Resume Learning', onTap: null, icon: Icons.play_arrow_rounded),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Container(
-              width: 88,
-              height: 88,
-              decoration: BoxDecoration(
-                color: AppTheme.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.fromBorderSide(AppTheme.border()),
-              ),
-              child: const Icon(Icons.auto_awesome_rounded, color: AppTheme.primary, size: 38),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-*/
 class _NotificationBell extends StatelessWidget {
   final PaymentRepository paymentRepository;
   final User currentUser;
