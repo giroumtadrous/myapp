@@ -6,11 +6,7 @@ class SessionDocument {
   final String url;
   final String? type;
 
-  const SessionDocument({
-    required this.name,
-    required this.url,
-    this.type,
-  });
+  const SessionDocument({required this.name, required this.url, this.type});
 }
 
 class SessionModel {
@@ -32,6 +28,10 @@ class SessionModel {
   final String? tutorName; // populated after join with tutors collection
   final String? studentName;
   final String? tutorPhotoUrl;
+  final String? refundStatus;
+  final bool? refundDone;
+  final DateTime? refundProcessedAt;
+  final DateTime? refundedAt;
 
   const SessionModel({
     required this.id,
@@ -52,6 +52,10 @@ class SessionModel {
     this.tutorName,
     this.studentName,
     this.tutorPhotoUrl,
+    this.refundStatus,
+    this.refundDone,
+    this.refundProcessedAt,
+    this.refundedAt,
   });
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
@@ -79,6 +83,12 @@ class SessionModel {
           0,
       slotCount: _toSlotCount(data),
       reservedSlots: _toReservedSlots(data),
+      refundStatus: (data['refundStatus'] ?? data['refund_status'])?.toString(),
+      refundDone: _toNullableBool(data['refundDone'] ?? data['refund_done']),
+      refundProcessedAt: _toDateTime(
+        data['refundProcessedAt'] ?? data['refund_processed_at'],
+      ),
+      refundedAt: _toDateTime(data['refundedAt'] ?? data['refunded_at']),
     );
   }
 
@@ -170,6 +180,10 @@ class SessionModel {
     String? tutorName,
     String? studentName,
     String? tutorPhotoUrl,
+    String? refundStatus,
+    bool? refundDone,
+    DateTime? refundProcessedAt,
+    DateTime? refundedAt,
   }) {
     return SessionModel(
       id: id,
@@ -190,6 +204,10 @@ class SessionModel {
       tutorName: tutorName ?? this.tutorName,
       studentName: studentName ?? this.studentName,
       tutorPhotoUrl: tutorPhotoUrl ?? this.tutorPhotoUrl,
+      refundStatus: refundStatus ?? this.refundStatus,
+      refundDone: refundDone ?? this.refundDone,
+      refundProcessedAt: refundProcessedAt ?? this.refundProcessedAt,
+      refundedAt: refundedAt ?? this.refundedAt,
     );
   }
 
@@ -240,6 +258,32 @@ class SessionModel {
         .map((entry) => entry.toString().trim())
         .where((entry) => entry.isNotEmpty)
         .toList();
+  }
+
+  static bool? _toNullableBool(dynamic value) {
+    if (value == null) return null;
+    if (value is bool) return value;
+    final normalized = value.toString().trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+    if (normalized == 'true' || normalized == 'yes' || normalized == 'done') {
+      return true;
+    }
+    if (normalized == 'false' ||
+        normalized == 'no' ||
+        normalized == 'pending') {
+      return false;
+    }
+    return null;
+  }
+
+  static DateTime? _toDateTime(dynamic value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String && value.trim().isNotEmpty) {
+      return DateTime.tryParse(value.trim());
+    }
+    return null;
   }
 
   static List<SessionDocument> _toDocuments(dynamic raw) {

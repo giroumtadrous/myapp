@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -114,7 +113,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final usernameAvailable = await _authService.isUsernameAvailable(username);
+      final usernameAvailable = await _authService.isUsernameAvailable(
+        username,
+      );
       if (!usernameAvailable) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -131,19 +132,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
       await user.updateDisplayName(name);
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-        'uid': user.uid,
-        'username': username,
-        'name': name,
-        'institution': institution,
-        'universityOrHighSchool': institution,
-        'role': 'student',
-        'email': email,
-        'displayName': name,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-        'authProvider': 'email',
-      }, SetOptions(merge: true));
+      await _authService.saveUserProfileWithUsernameClaim(
+        uid: user.uid,
+        username: username,
+        name: name,
+        institution: institution,
+        email: email,
+        role: 'student',
+        authProvider: 'email',
+        displayName: name,
+      );
       // Proceed to profile completion flow instead of email verification.
       final complete = await _authService.isProfileComplete(user.uid);
       if (!mounted) return;
@@ -220,9 +218,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-in failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Google sign-in failed: $e')));
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
@@ -268,7 +266,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Icon(Icons.g_mobiledata, size: 26),
                         label: const Text('Continue with Google'),
@@ -306,7 +306,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Text('University', style: textTheme.labelLarge),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
-                    value: _selectedInstitution,
+                    initialValue: _selectedInstitution,
                     isExpanded: true,
                     decoration: const InputDecoration(
                       hintText: 'Select your university',
@@ -321,7 +321,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         .toList(),
                     onChanged: (_isLoading || _isGoogleLoading)
                         ? null
-                        : (value) => setState(() => _selectedInstitution = value),
+                        : (value) =>
+                              setState(() => _selectedInstitution = value),
                   ),
                   const SizedBox(height: 16),
                   Text('Password', style: textTheme.labelLarge),

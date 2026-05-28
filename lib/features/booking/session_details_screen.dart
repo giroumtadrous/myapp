@@ -4,12 +4,16 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/session_model.dart';
+import '../../models/tutor_model.dart';
 import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
+import '../../repositories/tutors_repository.dart';
 import '../../services/jitsi_meet_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/zelp_ui_components.dart';
+import 'zelp_tutor_profile_screen.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final String sessionId;
@@ -23,6 +27,7 @@ class SessionDetailsScreen extends StatefulWidget {
 class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   final ReviewsRepository _reviewsRepository = ReviewsRepository();
+  final TutorsRepository _tutorsRepository = TutorsRepository();
   bool _isCanceling = false;
   bool _isJoining = false;
   bool _submittingReview = false;
@@ -127,6 +132,77 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         session.studentId.trim() == user.uid;
   }
 
+  bool _isCancelled(SessionModel session) {
+    return session.status.toLowerCase() == 'cancelled';
+  }
+
+  String _refundStatusLabel(SessionModel session) {
+    final status = (session.refundStatus ?? '').trim().toLowerCase();
+    if (session.refundDone == true ||
+        session.refundedAt != null ||
+        session.refundProcessedAt != null ||
+        status == 'done' ||
+        status == 'refunded' ||
+        status == 'completed') {
+      return 'Refund done';
+    }
+
+    if (session.refundDone == false ||
+        status == 'pending' ||
+        status == 'requested' ||
+        status == 'processing' ||
+        status == 'in_progress') {
+      return 'Refund pending';
+    }
+
+    return 'Refund pending admin review';
+  }
+
+  Widget _refundStatusChip(SessionModel session) {
+    final label = _refundStatusLabel(session);
+    final isDone = label == 'Refund done';
+    final background = isDone
+        ? const Color(0xFFE8F5E9)
+        : const Color(0xFFFFF4E5);
+    final foreground = isDone
+        ? const Color(0xFF166534)
+        : const Color(0xFF9A3412);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.fromBorderSide(
+          BorderSide(color: foreground.withValues(alpha: 0.18)),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isDone ? Icons.verified_outlined : Icons.schedule_outlined,
+            size: 18,
+            color: foreground,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(color: foreground, fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openTutorProfile(Tutor tutor) async {
+    if (!mounted) return;
+    Navigator.of(context).push(
+      AppTransitions.slideFromRight(page: ZelpTutorProfileScreen(tutor: tutor)),
+    );
+  }
+
   Future<void> _showReviewDialog(SessionModel session) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -157,7 +233,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                           });
                         },
                         icon: Icon(
-                          isFilled ? Icons.star_rounded : Icons.star_border_rounded,
+                          isFilled
+                              ? Icons.star_rounded
+                              : Icons.star_border_rounded,
                           color: Colors.amber,
                         ),
                       );
@@ -214,9 +292,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit review: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to submit review: $e')));
     } finally {
       textController.dispose();
       if (mounted) setState(() => _submittingReview = false);
@@ -260,6 +338,7 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
           final session = details.session;
           final currentUser = FirebaseAuth.instance.currentUser;
+          final cancelled = _isCancelled(session);
           final canJoin = _sessionRepository.canJoinSession(session);
           final canCancel = _canCancel(session);
           final canReview = _canReview(session, currentUser);
@@ -292,9 +371,14 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 5,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.background.withValues(alpha: 0.14),
+                                  color: AppTheme.background.withValues(
+                                    alpha: 0.14,
+                                  ),
                                   borderRadius: BorderRadius.circular(999),
                                 ),
                                 child: Text(
@@ -325,7 +409,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                             children: [
                               _InfoChip(
                                 icon: Icons.schedule_rounded,
-                                label: '${DateFormat.yMMMd().format(session.dateTime)} · ${DateFormat.jm().format(session.dateTime)}',
+                                label:
+                                    '${DateFormat.yMMMd().format(session.dateTime)} · ${DateFormat.jm().format(session.dateTime)}',
                               ),
                               _InfoChip(
                                 icon: Icons.timelapse_rounded,
@@ -369,12 +454,16 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                                 const SizedBox(height: 6),
                                 Text(
                                   'Tutor session',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(color: AppTheme.textSecondary),
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
                                   '${DateFormat.yMMMd().format(session.dateTime)}, ${DateFormat.jm().format(session.dateTime)}',
-                                  style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                    color: AppTheme.textPrimary,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ],
                             ),
@@ -425,7 +514,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _MetaBox('Duration', '${session.durationMinutes} min'),
+                          child: _MetaBox(
+                            'Duration',
+                            '${session.durationMinutes} min',
+                          ),
                         ),
                         const SizedBox(width: 10),
                         const Expanded(
@@ -436,7 +528,9 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                     const SizedBox(height: 14),
                     if (canReview)
                       FutureBuilder<bool>(
-                        future: _reviewsRepository.hasReviewForSession(session.id),
+                        future: _reviewsRepository.hasReviewForSession(
+                          session.id,
+                        ),
                         builder: (context, reviewSnapshot) {
                           if (reviewSnapshot.connectionState ==
                               ConnectionState.waiting) {
@@ -455,14 +549,13 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                                   alreadyReviewed
                                       ? 'You already reviewed this session.'
                                       : 'Rate & review this completed session',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
+                                  style: Theme.of(context).textTheme.titleSmall
                                       ?.copyWith(fontWeight: FontWeight.w700),
                                 ),
                                 const SizedBox(height: 8),
                                 FilledButton.icon(
-                                  onPressed: alreadyReviewed || _submittingReview
+                                  onPressed:
+                                      alreadyReviewed || _submittingReview
                                       ? null
                                       : () => _showReviewDialog(session),
                                   icon: _submittingReview
@@ -479,8 +572,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                                     _submittingReview
                                         ? 'Submitting...'
                                         : alreadyReviewed
-                                            ? 'Review Submitted'
-                                            : 'Write a Review',
+                                        ? 'Review Submitted'
+                                        : 'Write a Review',
                                   ),
                                 ),
                               ],
@@ -541,36 +634,72 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                   color: AppTheme.surface,
                   border: Border(top: AppTheme.border()),
                 ),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: ZelpPrimaryButton(
-                        label: _isJoining ? 'Joining...' : 'Join Session',
-                        icon: _isJoining ? null : Icons.videocam_outlined,
-                        onTap: (canJoin && !_isJoining) ? () => _joinSession(session) : null,
+                child: cancelled
+                    ? StreamBuilder<Tutor?>(
+                        stream: _tutorsRepository.getTutorById(session.tutorId),
+                        builder: (context, tutorSnapshot) {
+                          final tutor = tutorSnapshot.data;
+                          return Column(
+                            children: [
+                              _refundStatusChip(session),
+                              const SizedBox(height: 8),
+                              SizedBox(
+                                width: double.infinity,
+                                child: ZelpPrimaryButton(
+                                  label:
+                                      tutorSnapshot.connectionState ==
+                                          ConnectionState.waiting
+                                      ? 'Loading tutor...'
+                                      : 'Rebook with Tutor',
+                                  icon: Icons.refresh_rounded,
+                                  onTap: tutor == null
+                                      ? null
+                                      : () => _openTutorProfile(tutor),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    : Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            child: ZelpPrimaryButton(
+                              label: _isJoining ? 'Joining...' : 'Join Session',
+                              icon: _isJoining ? null : Icons.videocam_outlined,
+                              onTap: (canJoin && !_isJoining)
+                                  ? () => _joinSession(session)
+                                  : null,
+                            ),
+                          ),
+                          if (!canJoin) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Join is enabled when the session is approved and within 15 minutes before it starts until it ends.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: AppTheme.textSecondary),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          if (canCancel)
+                            SizedBox(
+                              width: double.infinity,
+                              child: ZelpSecondaryButton(
+                                label: _isCanceling
+                                    ? 'Cancelling...'
+                                    : 'Cancel Session',
+                                icon: _isCanceling
+                                    ? null
+                                    : Icons.cancel_outlined,
+                                onTap: _isCanceling
+                                    ? null
+                                    : () => _cancelSession(session),
+                              ),
+                            ),
+                        ],
                       ),
-                    ),
-                    if (!canJoin) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Join is enabled when the session is approved and within 15 minutes before it starts until it ends.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.textSecondary),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                    const SizedBox(height: 8),
-                    if (canCancel)
-                      SizedBox(
-                        width: double.infinity,
-                        child: ZelpSecondaryButton(
-                          label: _isCanceling ? 'Cancelling...' : 'Cancel Session',
-                          icon: _isCanceling ? null : Icons.cancel_outlined,
-                          onTap: _isCanceling ? null : () => _cancelSession(session),
-                        ),
-                      ),
-                  ],
-                ),
               ),
             ],
           );
@@ -634,7 +763,10 @@ class _MetaBox extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary),
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textPrimary,
+            ),
           ),
         ],
       ),

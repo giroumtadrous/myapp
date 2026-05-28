@@ -24,6 +24,15 @@ service cloud.firestore {
         (request.auth.uid == userId || isAdmin());
     }
 
+    // ---------------- USERNAME CLAIMS ----------------
+    match /usernameClaims/{username} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAuthenticated() &&
+        resource.data.uid == request.auth.uid;
+    }
+
     // ---------------- TUTORS ----------------
     match /tutors/{tutorId} {
       allow read: if isAuthenticated();
@@ -39,6 +48,21 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         request.auth.uid == resource.data.tutorId &&
         request.resource.data.status == "completed";
+      allow update: if isAuthenticated() &&
+        request.resource.data.status == "cancelled" &&
+        resource.data.status != "completed" &&
+        request.auth.uid in [resource.data.studentId, resource.data.tutorId];
+      allow delete: if isAuthenticated() &&
+        request.auth.uid in [resource.data.studentId, resource.data.tutorId] &&
+        resource.data.status == "cancelled" &&
+        (
+          resource.data.refundDone == true ||
+          resource.data.refund_done == true ||
+          resource.data.refundStatus == "refunded" ||
+          resource.data.refund_status == "refunded" ||
+          resource.data.refundedAt != null ||
+          resource.data.refunded_at != null
+        );
       allow update, delete: if isAdmin();
     }
 

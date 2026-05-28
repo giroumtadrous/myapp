@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -34,17 +33,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     final displayName = (user.displayName ?? '').trim();
     if (displayName.isNotEmpty) {
-      _usernameController.text = displayName.replaceAll(RegExp(r'\s+'), '').toLowerCase();
+      _usernameController.text = displayName
+          .replaceAll(RegExp(r'\s+'), '')
+          .toLowerCase();
     }
 
     try {
       final appUser = await _userService.getUser(user.uid);
       if (!mounted || appUser == null) return;
 
-      final institution =
-          appUser.universityOrHighSchool.trim().isNotEmpty
-              ? appUser.universityOrHighSchool.trim()
-              : appUser.institution.trim();
+      final institution = appUser.universityOrHighSchool.trim().isNotEmpty
+          ? appUser.universityOrHighSchool.trim()
+          : appUser.institution.trim();
       if (egyptianUniversities.contains(institution)) {
         setState(() => _selectedInstitution = institution);
       }
@@ -81,18 +81,18 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in again.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please sign in again.')));
       return;
     }
 
     setState(() => _saving = true);
     try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final existingDoc = await userRef.get();
       final provider = _authService.detectSocialProvider(user);
-      final normalizedUsername = _authService.normalizeUsername(_usernameController.text);
+      final normalizedUsername = _authService.normalizeUsername(
+        _usernameController.text,
+      );
 
       final usernameAvailable = await _authService.isUsernameAvailable(
         normalizedUsername,
@@ -106,25 +106,17 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         return;
       }
 
-      final payload = <String, dynamic>{
-        'uid': user.uid,
-        'username': normalizedUsername,
-        'name': user.displayName ?? normalizedUsername,
-        'institution': _selectedInstitution!.trim(),
-        'universityOrHighSchool': _selectedInstitution!.trim(),
-        'email': user.email,
-        'displayName': user.displayName,
-        'photoUrl': user.photoURL,
-        'role': 'student',
-        'authProvider': provider,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
-
-      if (!existingDoc.exists) {
-        payload['createdAt'] = FieldValue.serverTimestamp();
-      }
-
-      await userRef.set(payload, SetOptions(merge: true));
+      await _authService.saveUserProfileWithUsernameClaim(
+        uid: user.uid,
+        username: normalizedUsername,
+        name: user.displayName ?? normalizedUsername,
+        institution: _selectedInstitution!.trim(),
+        email: user.email ?? '',
+        role: 'student',
+        authProvider: provider,
+        displayName: user.displayName,
+        photoUrl: user.photoURL,
+      );
       await _userService.syncFcmToken(user.uid);
 
       if (!mounted) return;
@@ -133,9 +125,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save profile: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save profile: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -160,9 +152,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                   children: [
                     Text(
                       'Complete Your Profile',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
@@ -170,8 +161,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                       'Just a few more details to get started',
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: const Color(0xFF64748B),
-                          ),
+                        color: const Color(0xFF64748B),
+                      ),
                     ),
                     const SizedBox(height: 22),
                     TextFormField(
@@ -185,7 +176,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     ),
                     const SizedBox(height: 14),
                     DropdownButtonFormField<String>(
-                      value: _selectedInstitution,
+                      initialValue: _selectedInstitution,
                       validator: _validateInstitution,
                       isExpanded: true,
                       decoration: const InputDecoration(
@@ -203,15 +194,16 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                           .toList(),
                       onChanged: _saving
                           ? null
-                          : (value) => setState(() => _selectedInstitution = value),
+                          : (value) =>
+                                setState(() => _selectedInstitution = value),
                     ),
                     const SizedBox(height: 10),
                     if ((user?.email ?? '').isNotEmpty)
                       Text(
                         'Signed in as ${user!.email}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: const Color(0xFF64748B),
-                            ),
+                          color: const Color(0xFF64748B),
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     const SizedBox(height: 20),
@@ -222,7 +214,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                             ? const SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
                               )
                             : const Text('Continue'),
                       ),

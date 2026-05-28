@@ -125,11 +125,14 @@ class SessionRepository {
           _logFetchedDocs('student-upcoming', snap);
           final now = DateTime.now();
 
-          final mapped = snap.docs.map((d) => SessionModel.fromFirestore(d)).toList();
+          final mapped = snap.docs
+              .map((d) => SessionModel.fromFirestore(d))
+              .toList();
 
           final filtered = <SessionModel>[];
           for (final session in mapped) {
-            final isForStudent = session.studentId.trim() == normalizedStudentId;
+            final isForStudent =
+                session.studentId.trim() == normalizedStudentId;
             final isUpcoming = session.dateTime.isAfter(now);
 
             if (_canLogSessions) {
@@ -154,31 +157,46 @@ class SessionRepository {
   // ── Past sessions (dateTime < now, any terminal status) ─────────────────
   Stream<List<SessionModel>> pastSessions(String studentId) {
     final normalizedStudentId = studentId.trim();
-    return _firestore
-        .collection('sessions')
-        .snapshots()
-        .asyncMap((snap) async {
-          _logFetchedDocs('student-past', snap);
-          final now = DateTime.now();
-          final filtered = snap.docs
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('student-past', snap);
+      final now = DateTime.now();
+      final filtered =
+          snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.studentId.trim() == normalizedStudentId)
               .where((s) => s.dateTime.isBefore(now))
               .toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-          return _enrichWithTutorNames(filtered);
-        });
+      return _enrichWithTutorNames(filtered);
+    });
   }
 
   Stream<List<SessionModel>> allStudentSessions(String studentId) {
     final normalizedStudentId = studentId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
       _logFetchedDocs('student-all', snap);
-      final filtered = snap.docs
-          .map((d) => SessionModel.fromFirestore(d))
-          .where((s) => s.studentId.trim() == normalizedStudentId)
-          .toList()
-        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      final filtered =
+          snap.docs
+              .map((d) => SessionModel.fromFirestore(d))
+              .where((s) => s.studentId.trim() == normalizedStudentId)
+              .toList()
+            ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      return _enrichWithTutorNames(filtered);
+    });
+  }
+
+  Stream<List<SessionModel>> upcomingStudentSessions(String studentId) {
+    final normalizedStudentId = studentId.trim();
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('student-upcoming', snap);
+      final now = DateTime.now();
+      final filtered =
+          snap.docs
+              .map((d) => SessionModel.fromFirestore(d))
+              .where((s) => s.studentId.trim() == normalizedStudentId)
+              .where((s) => !s.dateTime.isBefore(now))
+              .toList()
+            ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
       return _enrichWithTutorNames(filtered);
     });
   }
@@ -190,6 +208,40 @@ class SessionRepository {
       'cancelledAt': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<void> deleteSessionPermanently(String sessionId) async {
+    await _firestore.collection('sessions').doc(sessionId).delete();
+  }
+
+  Future<int> cleanupRefundedCancelledSessions(String studentId) async {
+    final normalizedStudentId = studentId.trim();
+    if (normalizedStudentId.isEmpty) return 0;
+
+    final snap = await _firestore
+        .collection('sessions')
+        .where('studentId', isEqualTo: normalizedStudentId)
+        .where('status', isEqualTo: 'cancelled')
+        .get();
+
+    final deletableDocs = snap.docs.where((doc) {
+      final data = doc.data();
+      return data['refundDone'] == true ||
+          data['refund_done'] == true ||
+          data['refundedAt'] != null ||
+          data['refunded_at'] != null ||
+          data['refundStatus']?.toString().toLowerCase() == 'refunded' ||
+          data['refund_status']?.toString().toLowerCase() == 'refunded';
+    }).toList();
+
+    if (deletableDocs.isEmpty) return 0;
+
+    final batch = _firestore.batch();
+    for (final doc in deletableDocs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    return deletableDocs.length;
   }
 
   Future<void> markSessionAsCompleted(String sessionId) async {
@@ -227,7 +279,7 @@ class SessionRepository {
   bool canJoinSession(SessionModel session, {DateTime? now}) {
     final current = now ?? DateTime.now();
     final normalizedStatus = session.status.toLowerCase();
-    
+
     // Only allow joining if status is approved
     final isApproved = normalizedStatus == 'approved';
     if (!isApproved) return false;
@@ -247,55 +299,52 @@ class SessionRepository {
   // ── Upcoming sessions for a tutor (dateTime >= now) ──────────────────────
   Stream<List<SessionModel>> tutorUpcomingSessions(String tutorId) {
     final normalizedTutorId = tutorId.trim();
-    return _firestore
-        .collection('sessions')
-        .snapshots()
-        .asyncMap((snap) async {
-          _logFetchedDocs('tutor-upcoming', snap);
-          final now = DateTime.now();
-          final mapped = snap.docs.map((d) => SessionModel.fromFirestore(d)).toList();
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('tutor-upcoming', snap);
+      final now = DateTime.now();
+      final mapped = snap.docs
+          .map((d) => SessionModel.fromFirestore(d))
+          .toList();
 
-          final filtered = <SessionModel>[];
-          for (final session in mapped) {
-            final isForTutor = session.tutorId.trim() == normalizedTutorId;
-            final isUpcoming = session.dateTime.isAfter(now);
+      final filtered = <SessionModel>[];
+      for (final session in mapped) {
+        final isForTutor = session.tutorId.trim() == normalizedTutorId;
+        final isUpcoming = session.dateTime.isAfter(now);
 
-            if (_canLogSessions) {
-              debugPrint(
-                '[Sessions][tutor-upcoming] parsed id=${session.id} '
-                'duration=${session.durationMinutes} slotCount=${session.slotCount} '
-                'dateTime=${session.dateTime.toIso8601String()} '
-                'tutorMatch=$isForTutor upcoming=$isUpcoming status=${session.status}',
-              );
-            }
+        if (_canLogSessions) {
+          debugPrint(
+            '[Sessions][tutor-upcoming] parsed id=${session.id} '
+            'duration=${session.durationMinutes} slotCount=${session.slotCount} '
+            'dateTime=${session.dateTime.toIso8601String()} '
+            'tutorMatch=$isForTutor upcoming=$isUpcoming status=${session.status}',
+          );
+        }
 
-            if (isForTutor && isUpcoming) {
-              filtered.add(session);
-            }
-          }
+        if (isForTutor && isUpcoming) {
+          filtered.add(session);
+        }
+      }
 
-          filtered.sort((a, b) => a.dateTime.compareTo(b.dateTime));
-          return _enrichWithStudentNames(filtered);
-        });
+      filtered.sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      return _enrichWithStudentNames(filtered);
+    });
   }
 
   // ── Past sessions for a tutor (dateTime < now) ────────────────────────────
   Stream<List<SessionModel>> tutorPastSessions(String tutorId) {
     final normalizedTutorId = tutorId.trim();
-    return _firestore
-        .collection('sessions')
-        .snapshots()
-        .asyncMap((snap) async {
-          _logFetchedDocs('tutor-past', snap);
-          final now = DateTime.now();
-          final filtered = snap.docs
+    return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
+      _logFetchedDocs('tutor-past', snap);
+      final now = DateTime.now();
+      final filtered =
+          snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.tutorId.trim() == normalizedTutorId)
               .where((s) => s.dateTime.isBefore(now))
               .toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
-          return _enrichWithStudentNames(filtered);
-        });
+      return _enrichWithStudentNames(filtered);
+    });
   }
 
   Stream<List<SessionModel>> tutorSessionsOnDate(
@@ -308,12 +357,17 @@ class SessionRepository {
 
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
       _logFetchedDocs('tutor-day', snap);
-      final filtered = snap.docs
-          .map((d) => SessionModel.fromFirestore(d))
-          .where((s) => s.tutorId.trim() == normalizedTutorId)
-          .where((s) => !s.dateTime.isBefore(dayStart) && s.dateTime.isBefore(dayEnd))
-          .toList()
-        ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
+      final filtered =
+          snap.docs
+              .map((d) => SessionModel.fromFirestore(d))
+              .where((s) => s.tutorId.trim() == normalizedTutorId)
+              .where(
+                (s) =>
+                    !s.dateTime.isBefore(dayStart) &&
+                    s.dateTime.isBefore(dayEnd),
+              )
+              .toList()
+            ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
       return _enrichWithStudentNames(filtered);
     });
   }
