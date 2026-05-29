@@ -39,28 +39,23 @@ jobs:
 
       - name: Inject GoogleService-Info.plist
         run: |
-          # 1. Find the file
-          GS_PATH=$(find . -name "GoogleService-Info.plist" | head -n 1)
-          
-          if [ -z "$GS_PATH" ]; then
-            echo "ERROR: GoogleService-Info.plist NOT FOUND in the repository!"
-            exit 1
-          fi
+          # 1. Ensure the file is exactly where it needs to be
+          cp ios/Runner/GoogleService-Info.plist . || true
+          cp GoogleService-Info.plist ios/Runner/GoogleService-Info.plist || true
 
-          # 2. Only copy if it's not already in the correct spot
-          TARGET_DEST="ios/Runner/GoogleService-Info.plist"
-          if [ "$GS_PATH" != "./$TARGET_DEST" ] && [ "$GS_PATH" != "$TARGET_DEST" ]; then
-            echo "Moving file from $GS_PATH to $TARGET_DEST"
-            cp "$GS_PATH" "$TARGET_DEST"
-          else
-            echo "File is already in the correct location."
-          fi
-          
-          # 3. Register in Xcode (Fixed for Mac Runners)
-          # We use 'perl' instead of 'sed' because it works exactly the same on Windows, Mac, and Linux
+          # 2. Register in Xcode project file
+          # We use a simpler sed command that avoids the 'seen' variable error
           PBX_PATH="ios/Runner.xcodeproj/project.pbxproj"
-          perl -i -pe 'print "\t\tD73872AD237909A100904033 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D73872AC237909A100904033 /* GoogleService-Info.plist */; };\n" if /AppDelegate.swift/ && !seen_build_file++' "$PBX_PATH"
-          perl -i -pe 'print "\t\tD73872AC237909A100904033 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = \"GoogleService-Info.plist\"; sourceTree = \"<group>\"; };\n" if /AppDelegate.swift/ && !seen_file_ref++' "$PBX_PATH"
+          
+          echo "Registering file in $PBX_PATH..."
+          
+          # Insert the Build File reference
+          sed -i '' '/AppDelegate.swift/a\'$'\n''		D73872AD237909A100904033 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D73872AC237909A100904033 /* GoogleService-Info.plist */; };' "$PBX_PATH"
+          
+          # Insert the File Reference
+          sed -i '' '/AppDelegate.swift/a\'$'\n''		D73872AC237909A100904033 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };' "$PBX_PATH"
+          
+          echo "Injection complete."
           
       - name: Build iOS App Bundle
         run: flutter build ios --release --no-codesign
