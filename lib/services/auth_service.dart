@@ -95,6 +95,13 @@ class AuthService {
     }
 
     try {
+      final available = await SignInWithApple.isAvailable();
+      if (!available) {
+        throw UnsupportedError(
+          'Sign in with Apple is not available on this device or simulator.',
+        );
+      }
+
       final rawNonce = _generateNonce();
       final hashedNonce = _sha256OfString(rawNonce);
 
@@ -106,11 +113,27 @@ class AuthService {
         nonce: hashedNonce,
       );
 
+      final identityToken = appleCredential.identityToken;
+      if (identityToken == null || identityToken.trim().isEmpty) {
+        throw StateError(
+          'Apple sign-in did not return an identity token. Please try again.',
+        );
+      }
+
       final oauthCredential = OAuthProvider(
         'apple.com',
-      ).credential(idToken: appleCredential.identityToken, rawNonce: rawNonce);
+      ).credential(idToken: identityToken, rawNonce: rawNonce);
 
       return await _auth.signInWithCredential(oauthCredential);
+    } on SignInWithAppleAuthorizationException catch (e, st) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        debugPrint('[AuthService] Apple sign-in cancelled by user.');
+        return null;
+      }
+
+      debugPrint('[AuthService] Apple authorization failed: ${e.code} ${e.message}');
+      debugPrint(st.toString());
+      throw StateError('Apple sign-in failed: ${e.message ?? e.code.name}');
     } catch (e, st) {
       final text = e.toString().toLowerCase();
       if (text.contains('canceled') || text.contains('cancelled')) {
