@@ -120,7 +120,7 @@ class AuthService {
 
       debugPrint('[AuthService] Apple sign-in failed: $e');
       debugPrint(st.toString());
-      return null;
+      rethrow;
     }
   }
 
