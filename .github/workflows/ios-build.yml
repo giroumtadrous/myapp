@@ -19,16 +19,22 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Install Flutter Dependencies
+      - name: Install Dependencies
         run: flutter pub get
 
+      - name: Force iOS 15.1 Target
+        run: |
+          # This command finds any remaining 13.0 references and forces them to 15.1
+          find ios -type f -name "*.pbxproj" -exec sed -i '' 's/IPHONEOS_DEPLOYMENT_TARGET = 13.0/IPHONEOS_DEPLOYMENT_TARGET = 15.1/g' {} +
+          find ios -type f -name "*.plist" -exec sed -i '' 's/13.0/15.1/g' {} +
+
       - name: Create iOS Build Config
-        # This creates the Generated.xcconfig file that Podfile needs
         run: flutter build ios --release --no-codesign --config-only
 
       - name: Install CocoaPods
         run: |
           cd ios
+          rm -rf Podfile.lock
           pod install --repo-update
 
       - name: Build iOS App Bundle
