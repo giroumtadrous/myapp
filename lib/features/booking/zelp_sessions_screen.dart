@@ -7,7 +7,7 @@ import '../../models/session_model.dart';
 import '../../repositories/payment_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
-import '../../services/jitsi_meet_service.dart';
+import '../../services/meeting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -55,10 +55,10 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
     User user,
   ) async {
     try {
-      await JitsiMeetService.instance.startMeeting(
+      await MeetingService.instance.startMeeting(
         context: context,
         sessionId: session.id,
-        tutorId: session.tutorId,
+        roomName: session.roomName,
       );
     } catch (e) {
       if (!context.mounted) return;

@@ -8,7 +8,7 @@ import '../../models/tutor_model.dart';
 import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
-import '../../services/jitsi_meet_service.dart';
+import '../../services/meeting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -43,10 +43,10 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
     setState(() => _isJoining = true);
     try {
-      await JitsiMeetService.instance.startMeeting(
+      await MeetingService.instance.startMeeting(
         context: context,
         sessionId: session.id,
-        tutorId: session.tutorId,
+        roomName: session.roomName,
       );
     } catch (e) {
       if (!mounted) return;

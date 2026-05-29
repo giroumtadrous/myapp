@@ -85,7 +85,7 @@ class SessionRepository {
     return _firestore.runTransaction((tx) async {
       final snap = await tx.get(sessionRef);
       final data = snap.data() ?? <String, dynamic>{};
-      final roomName = (data['roomName'] ?? data['jitsiRoomName'] ?? '')
+        final roomName = (data['roomName'] ?? '')
           .toString()
           .trim();
 

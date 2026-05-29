@@ -69,7 +69,7 @@ class SessionModel {
       subject: (data['subject'] ?? '').toString(),
       dateTime: dt,
       status: (data['status'] ?? 'pending').toString(),
-      roomName: (data['roomName'] ?? data['jitsiRoomName'] ?? '').toString(),
+      roomName: (data['roomName'] ?? '').toString(),
       notes: (data['notes'] ?? data['note'] ?? '').toString(),
       durationMinutes: _toDurationMinutes(data),
       documents: _toDocuments(

@@ -31,7 +31,7 @@ class PaymentRepository {
     return 'tutor-${chars.join()}';
   }
 
-  String _jitsiMeetLink(String roomName) {
+  String _meetingLink(String roomName) {
     return 'https://meet.ffmuc.net/$roomName';
   }
 
@@ -127,7 +127,7 @@ class PaymentRepository {
                   .toString();
               final meetLink = existingMeetLink.isNotEmpty
                   ? existingMeetLink
-                  : _jitsiMeetLink(roomName);
+                  : _meetingLink(roomName);
 
               tx.set(paymentRef, {
                 'studentId': studentId,
@@ -287,7 +287,7 @@ class PaymentRepository {
                   .toString();
               final meetLink = existingMeetLink.isNotEmpty
                   ? existingMeetLink
-                  : _jitsiMeetLink(roomName);
+                  : _meetingLink(roomName);
 
               tx.set(paymentRef, {
                 'studentId': studentId,
@@ -407,7 +407,7 @@ class PaymentRepository {
         'status': sessionStatus,
         'updatedAt': FieldValue.serverTimestamp(),
         'roomName': roomName,
-        'meetLink': _jitsiMeetLink(roomName),
+        'meetLink': _meetingLink(roomName),
       });
 
       tx.set(_firestore.collection('notifications').doc(), {
