@@ -39,14 +39,24 @@ jobs:
 
       - name: Inject GoogleService-Info.plist
         run: |
-          # This ensures the file is actually moved into the right place for the build
-          cp GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
+          # 1. Search for the file in the whole project
+          GS_PATH=$(find . -name "GoogleService-Info.plist" | head -n 1)
+
+          if [ -z "$GS_PATH" ]; then
+            echo "ERROR: GoogleService-Info.plist NOT FOUND in the repository!"
+            echo "Make sure you ran: git add ios/Runner/GoogleService-Info.plist"
+            exit 1
+          else
+            echo "Found file at: $GS_PATH"
+            # 2. Copy it to the exact place Xcode expects
+            mkdir -p ios/Runner
+            cp "$GS_PATH" ios/Runner/GoogleService-Info.plist
+          fi
           
-          # This script tells the Mac to include the file even if it wasn't registered in Xcode
-          echo "Adding GoogleService-Info.plist to the build resources..."
+          # 3. Register it in the project file (as we did before)
           sed -i '' '/AppDelegate.swift/a\'$'\n''		D73872AD237909A100904033 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D73872AC237909A100904033 /* GoogleService-Info.plist */; };' ios/Runner.xcodeproj/project.pbxproj
           sed -i '' '/AppDelegate.swift/a\'$'\n''		D73872AC237909A100904033 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };' ios/Runner.xcodeproj/project.pbxproj
-          
+      
       - name: Build iOS App Bundle
         run: flutter build ios --release --no-codesign
 
