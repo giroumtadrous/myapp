@@ -53,5 +53,20 @@
 	<array>
 		<string>remote-notification</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>TutorApp needs camera access for video calls.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TutorApp needs microphone access for audio calls.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TutorApp needs photo access to change your profile picture.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+	  <string>audio</string>
+	  <string>voip</string>
+	  <string>fetch</string>
+	  <string>remote-notification</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
 </dict>
 </plist>
