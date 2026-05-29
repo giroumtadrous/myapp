@@ -2,8 +2,8 @@ name: "Free iOS Build"
 
 on:
   push:
-    branches: [ main ]  # Runs automatically when you push to main
-  workflow_dispatch:     # Allows you to click "Run workflow" manually from GitHub
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -22,8 +22,8 @@ jobs:
       - name: Install Flutter Dependencies
         run: flutter pub get
 
-      # This step ensures the Flutter/Generated.xcconfig exists so Podfile can find FLUTTER_ROOT
-      - name: Pre-build iOS to generate config
+      - name: Create iOS Build Config
+        # This creates the Generated.xcconfig file that Podfile needs
         run: flutter build ios --release --no-codesign --config-only
 
       - name: Install CocoaPods
@@ -37,7 +37,6 @@ jobs:
       - name: Package IPA
         run: |
           mkdir -p Payload
-          # Moving the .app bundle into the Payload folder is what makes it an IPA
           mv build/ios/iphoneos/Runner.app Payload
           zip -r YourTutorApp.ipa Payload
 
