@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../booking/zelp_sessions_screen.dart';
 import 'zelp_home_screen.dart';
@@ -16,6 +17,12 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    NotificationService.instance.syncTokenForCurrentUser();
+  }
 
   late final List<Widget> _pages = const [
     ZelpHomeScreen(),

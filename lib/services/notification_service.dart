@@ -10,15 +10,74 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
 
+const String _backgroundAndroidChannelId = 'session_updates';
+
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
-    final title = message.notification?.title ?? '(no title)';
-    final body = message.notification?.body ?? '(no body)';
-    debugPrint('[FCM background] title: $title | body: $body');
+
+    if (message.notification != null) {
+      debugPrint(
+        '[FCM background] ${message.notification!.title} | '
+        '${message.notification!.body}',
+      );
+      return;
+    }
+
+    final title = message.data['title']?.toString();
+    final body = message.data['body']?.toString();
+    if (title == null && body == null) {
+      debugPrint('[FCM background] Data-only message has no title/body.');
+      return;
+    }
+
+    final plugin = FlutterLocalNotificationsPlugin();
+    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const darwinSettings = DarwinInitializationSettings();
+    await plugin.initialize(
+      const InitializationSettings(
+        android: androidSettings,
+        iOS: darwinSettings,
+        macOS: darwinSettings,
+      ),
+    );
+
+    final androidPlugin = plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        _backgroundAndroidChannelId,
+        'Session Updates',
+        description: 'Notifications for booking, payment, and session updates',
+        importance: Importance.high,
+      ),
+    );
+
+    const details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _backgroundAndroidChannelId,
+        'Session Updates',
+        channelDescription:
+            'Notifications for booking, payment, and session updates',
+        importance: Importance.max,
+        priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(),
+      macOS: DarwinNotificationDetails(),
+    );
+
+    await plugin.show(
+      message.hashCode,
+      title,
+      body,
+      details,
+      payload: message.data.isEmpty ? null : message.data.toString(),
+    );
+
+    debugPrint('[FCM background] Shown: ${title ?? ''} | ${body ?? ''}');
   } catch (e, st) {
     debugPrint('[FCM background] Failed to handle message: $e');
     debugPrint(st.toString());
@@ -140,6 +199,9 @@ class NotificationService {
       debugPrint(st.toString());
     }
   }
+
+  /// Re-saves the device FCM token for the signed-in user (e.g. after login).
+  Future<void> syncTokenForCurrentUser() => _syncTokenForCurrentUser();
 
   Future<void> _syncTokenForCurrentUser() async {
     final uid = _auth.currentUser?.uid;

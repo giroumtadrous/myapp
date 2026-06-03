@@ -412,10 +412,14 @@ class PaymentRepository {
 
       tx.set(_firestore.collection('notifications').doc(), {
         'userId': studentId,
-        'title': 'Payment Update',
+        'type': 'payment_status',
+        'paymentId': paymentId,
+        'sessionId': sessionId,
+        'status': paymentStatus,
+        'title': approved ? 'Payment Approved' : 'Payment Rejected',
         'message': approved
-            ? 'Your payment has been approved'
-            : 'Your payment has been rejected',
+            ? 'Your payment was approved and your session is now confirmed.'
+            : 'Your payment was rejected. Please check your payment details and try again.',
         'read': false,
         'createdAt': FieldValue.serverTimestamp(),
       });

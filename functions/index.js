@@ -102,7 +102,7 @@ async function sendSingleTokenPush({token, title, body, data}) {
     android: {
       priority: "high",
       notification: {
-        channelId: "session_notifications",
+        channelId: "session_updates",
         sound: "default",
       },
     },
@@ -187,19 +187,8 @@ exports.notifyPaymentStatusChanged = onDocumentUpdated(
       : "Your payment was rejected. Please check your payment details and try again.";
 
     try {
-      const userSnap = await admin.firestore().collection("users").doc(studentId).get();
-      const token = String(userSnap.get("fcmToken") || "").trim();
-
-      if (!token) {
-        logger.warn("No fcmToken found for student. Skipping push.", {
-          paymentId: event.params.paymentId,
-          studentId,
-        });
-        return;
-      }
-
-      await sendSingleTokenPush({
-        token,
+      await notifyUser({
+        userId: studentId,
         title,
         body,
         data: {
@@ -208,6 +197,7 @@ exports.notifyPaymentStatusChanged = onDocumentUpdated(
           status: newStatus,
           sessionId: String(after.sessionId || ""),
         },
+        context: "notifyPaymentStatusChanged",
       });
 
       logger.info("Payment status push sent", {
@@ -409,7 +399,12 @@ exports.notifySessionUpdated = onDocumentUpdated(
 
     const message = messageByStatus[newStatus] || `Session status updated to ${newStatus}`;
 
-    const recipients = [studentId, tutorAuthUid].filter(Boolean);
+    // Payment approve/reject already pushes to the student via notifyPaymentStatusChanged.
+    const studentReceivesPush = !["confirmed", "payment_rejected"].includes(newStatus);
+    const recipients = [
+      ...(studentReceivesPush && studentId ? [studentId] : []),
+      ...(tutorAuthUid ? [tutorAuthUid] : []),
+    ];
 
     logger.info("Preparing to send notifications", {
       sessionId,
