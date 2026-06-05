@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -8,7 +9,6 @@ import '../../models/tutor_model.dart';
 import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
-import '../../services/meeting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -29,36 +29,8 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   final ReviewsRepository _reviewsRepository = ReviewsRepository();
   final TutorsRepository _tutorsRepository = TutorsRepository();
   bool _isCanceling = false;
-  bool _isJoining = false;
   bool _submittingReview = false;
 
-  Future<void> _joinSession(SessionModel session) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to join this session.')),
-      );
-      return;
-    }
-
-    setState(() => _isJoining = true);
-    try {
-      await MeetingService.instance.startMeeting(
-        context: context,
-        sessionId: session.id,
-        roomName: session.roomName,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
-    } finally {
-      if (mounted) {
-        setState(() => _isJoining = false);
-      }
-    }
-  }
 
   Future<void> _cancelSession(SessionModel session) async {
     final confirmed = await showDialog<bool>(
@@ -663,23 +635,90 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                       )
                     : Column(
                         children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: ZelpPrimaryButton(
-                              label: _isJoining ? 'Joining...' : 'Join Session',
-                              icon: _isJoining ? null : Icons.videocam_outlined,
-                              onTap: (canJoin && !_isJoining)
-                                  ? () => _joinSession(session)
-                                  : null,
+                          if (session.meetLink != null && session.meetLink!.isNotEmpty) ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'MEETING LINK',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11,
+                                      color: Color(0xFF475569),
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          session.meetLink!,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1E293B),
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      IconButton.filledTonal(
+                                        onPressed: () {
+                                          Clipboard.setData(ClipboardData(text: session.meetLink!));
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(
+                                              content: Text('Link copied to clipboard!'),
+                                              duration: Duration(seconds: 2),
+                                            ),
+                                          );
+                                        },
+                                        icon: const Icon(Icons.copy_rounded, size: 18),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor: const Color(0xFFE2E8F0),
+                                          foregroundColor: const Color(0xFF475569),
+                                        ),
+                                        tooltip: 'Copy link',
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          if (!canJoin) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              'Join is enabled when the session is approved and within 15 minutes before it starts until it ends.',
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: AppTheme.textSecondary),
-                              textAlign: TextAlign.center,
+                          ] else ...[
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: const Color(0xFFFDE68A)),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.info_outline, color: Color(0xFFD97706), size: 18),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'Meeting link will be posted by the tutor.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFFB45309),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                           const SizedBox(height: 8),

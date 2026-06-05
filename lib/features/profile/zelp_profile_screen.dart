@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../../services/profile_photo_storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/user_service.dart';
 import '../../theme/app_theme.dart';
@@ -22,6 +24,126 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
   final UserService _userService = UserService();
   final SessionRepository _sessionRepository = SessionRepository();
   bool _signingOut = false;
+  bool _isUploadingPhoto = false;
+
+  Future<void> _pickAndUploadPhoto(String uid) async {
+    if (_isUploadingPhoto) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Select Profile Photo',
+              style: TextStyle(
+                color: AppTheme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildSourceOption(
+                  icon: Icons.photo_library_outlined,
+                  label: 'Gallery',
+                  source: ImageSource.gallery,
+                ),
+                _buildSourceOption(
+                  icon: Icons.camera_alt_outlined,
+                  label: 'Camera',
+                  source: ImageSource.camera,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    final pickedFile = await ProfilePhotoStorageService.instance.pickImage(source);
+    if (pickedFile == null) return;
+
+    setState(() => _isUploadingPhoto = true);
+
+    try {
+      final downloadUrl = await ProfilePhotoStorageService.instance.uploadProfilePhoto(
+        image: pickedFile,
+        userId: uid,
+        pathPrefix: 'users',
+      );
+
+      await _userService.updateUserPhotoUrl(uid, downloadUrl);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Profile photo updated successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to upload photo: $e'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+      }
+    }
+  }
+
+  Widget _buildSourceOption({
+    required IconData icon,
+    required String label,
+    required ImageSource source,
+  }) {
+    return InkWell(
+      onTap: () => Navigator.pop(context, source),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+        child: Column(
+          children: [
+            Icon(icon, size: 36, color: AppTheme.primary),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppTheme.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _signOut() async {
     if (_signingOut) return;
@@ -109,24 +231,59 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                       ),
                       child: Column(
                         children: [
-                          Container(
-                            width: 88,
-                            height: 88,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: AppTheme.buttonGradient,
-                              boxShadow: AppTheme.glow(),
-                            ),
-                            child: Center(
-                              child: Text(
-                                initials.isNotEmpty ? initials : 'TR',
-                                style: const TextStyle(
-                                  color: AppTheme.background,
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w800,
+                          Stack(
+                            children: [
+                              Container(
+                                width: 88,
+                                height: 88,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: appUser?.photoUrl.isNotEmpty == true ? null : AppTheme.buttonGradient,
+                                  image: appUser?.photoUrl.isNotEmpty == true
+                                      ? DecorationImage(
+                                          image: NetworkImage(appUser!.photoUrl),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                  boxShadow: AppTheme.glow(),
+                                ),
+                                child: _isUploadingPhoto
+                                    ? const Center(
+                                        child: CircularProgressIndicator(color: Colors.white),
+                                      )
+                                    : (appUser?.photoUrl.isNotEmpty == true
+                                        ? null
+                                        : Center(
+                                            child: Text(
+                                              initials.isNotEmpty ? initials : 'TR',
+                                              style: const TextStyle(
+                                                color: AppTheme.background,
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          )),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: GestureDetector(
+                                  onTap: () => _pickAndUploadPhoto(currentUser.uid),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: const BoxDecoration(
+                                      color: AppTheme.primary,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.photo_camera,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                           const SizedBox(height: 12),
                           Text(

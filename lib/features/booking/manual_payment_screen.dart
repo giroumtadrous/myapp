@@ -1,9 +1,11 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../repositories/payment_repository.dart';
+import '../../services/payment_screenshot_storage_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
 import '../dashboard/main_navigation_screen.dart';
@@ -51,7 +53,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
   // InstaPay Form Controllers
   final TextEditingController _timeController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
-  final TextEditingController _screenshotUrlController = TextEditingController();
+  final PaymentScreenshotStorageService _screenshotStorage =
+      PaymentScreenshotStorageService.instance;
+  XFile? _screenshotImage;
   DateTime? _transferTime;
 
   // Credit Card Form Controllers & Focus Node
@@ -78,7 +82,6 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
   void dispose() {
     _timeController.dispose();
     _noteController.dispose();
-    _screenshotUrlController.dispose();
     _cardNameController.dispose();
     _cardNumberController.dispose();
     _cardExpiryController.dispose();
@@ -126,9 +129,9 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
       return;
     }
 
-    if (_screenshotUrlController.text.trim().isEmpty) {
+    if (_screenshotImage == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please paste a screenshot image URL.')),
+        const SnackBar(content: Text('Please add a photo of your payment screenshot.')),
       );
       return;
     }
@@ -143,6 +146,12 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     setState(() => _submitting = true);
 
     try {
+      final screenshotUrl = await _screenshotStorage.uploadPaymentScreenshot(
+        image: _screenshotImage!,
+        userId: user.uid,
+        sessionId: widget.sessionId,
+      );
+
       await _paymentRepository.submitManualPayment(
         sessionId: widget.sessionId,
         studentId: user.uid,
@@ -157,7 +166,7 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
         slotCount: widget.slotCount,
         reservedSlots: widget.reservedSlots,
         transferTime: _transferTime!,
-        screenshotUrl: _screenshotUrlController.text.trim(),
+        screenshotUrl: screenshotUrl,
         note: _noteController.text,
       );
 
@@ -266,6 +275,92 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
         setState(() => _submitting = false);
       }
     }
+  }
+
+  Future<void> _pickScreenshot(ImageSource source) async {
+    if (_submitting) return;
+
+    try {
+      final image = source == ImageSource.camera
+          ? await _screenshotStorage.pickFromCamera()
+          : await _screenshotStorage.pickFromGallery();
+      if (image == null || !mounted) return;
+      setState(() => _screenshotImage = image);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not pick image: $e')),
+      );
+    }
+  }
+
+  Widget _screenshotPreview() {
+    if (_screenshotImage == null) {
+      return Container(
+        height: 160,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_rounded, size: 40, color: Color(0xFF94A3B8)),
+            SizedBox(height: 8),
+            Text(
+              'No payment screenshot yet',
+              style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: FutureBuilder<Uint8List>(
+            future: _screenshotImage!.readAsBytes(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const SizedBox(
+                  height: 200,
+                  child: Center(child: Text('Could not load preview')),
+                );
+              }
+              return Image.memory(
+                snapshot.data!,
+                height: 200,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              );
+            },
+          ),
+        ),
+        Positioned(
+          top: 8,
+          right: 8,
+          child: IconButton.filled(
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.black54,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: _submitting ? null : () => setState(() => _screenshotImage = null),
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Remove photo',
+          ),
+        ),
+      ],
+    );
   }
 
   String _detectCardType(String number) {
@@ -830,8 +925,7 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
                   '1. Open the InstaPay app on your phone.\n'
                   '2. Make a transfer to the number shown below.\n'
                   '3. Take a screenshot of the confirmation page.\n'
-                  '4. Upload the screenshot (e.g. to Google Drive, Imgur).\n'
-                  '5. Paste the link here as proof.',
+                  '4. Upload the photo here as proof.',
                   style: TextStyle(fontSize: 12, height: 1.5, color: Color(0xFF1E293B)),
                 ),
                 const Divider(height: 24, color: Color(0xFFE2E8F0)),
@@ -869,17 +963,34 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Text Fields
-        TextField(
-          controller: _screenshotUrlController,
-          enabled: !_submitting,
-          decoration: InputDecoration(
-            prefixIcon: const Icon(Icons.link_rounded, color: Color(0xFF64748B)),
-            labelText: 'Screenshot / Shareable Image Link',
-            hintText: 'https://drive.google.com/open?id=...',
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        Text(
+          'Payment screenshot',
+          style: textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF1E293B),
           ),
+        ),
+        const SizedBox(height: 10),
+        _screenshotPreview(),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _submitting ? null : () => _pickScreenshot(ImageSource.camera),
+                icon: const Icon(Icons.photo_camera_outlined),
+                label: const Text('Take photo'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _submitting ? null : () => _pickScreenshot(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: const Text('Gallery'),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 14),
 

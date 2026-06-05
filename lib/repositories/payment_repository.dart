@@ -31,9 +31,6 @@ class PaymentRepository {
     return 'tutor-${chars.join()}';
   }
 
-  String _meetingLink(String roomName) {
-    return 'https://meet.ffmuc.net/$roomName';
-  }
 
   Future<void> submitManualPayment({
     required String sessionId,
@@ -125,9 +122,11 @@ class PaymentRepository {
                   : _generateRandomRoomName();
               final existingMeetLink = (existingData['meetLink'] ?? '')
                   .toString();
-              final meetLink = existingMeetLink.isNotEmpty
+              final meetLink = (existingMeetLink.isNotEmpty &&
+                      !existingMeetLink.contains('meet.ffmuc.net') &&
+                      !existingMeetLink.contains('jitsi'))
                   ? existingMeetLink
-                  : _meetingLink(roomName);
+                  : null;
 
               tx.set(paymentRef, {
                 'studentId': studentId,
@@ -285,9 +284,11 @@ class PaymentRepository {
                   : _generateRandomRoomName();
               final existingMeetLink = (existingData['meetLink'] ?? '')
                   .toString();
-              final meetLink = existingMeetLink.isNotEmpty
+              final meetLink = (existingMeetLink.isNotEmpty &&
+                      !existingMeetLink.contains('meet.ffmuc.net') &&
+                      !existingMeetLink.contains('jitsi'))
                   ? existingMeetLink
-                  : _meetingLink(roomName);
+                  : null;
 
               tx.set(paymentRef, {
                 'studentId': studentId,
@@ -407,10 +408,10 @@ class PaymentRepository {
         'status': sessionStatus,
         'updatedAt': FieldValue.serverTimestamp(),
         'roomName': roomName,
-        'meetLink': _meetingLink(roomName),
       });
 
-      tx.set(_firestore.collection('notifications').doc(), {
+      final notificationId = 'payment_${paymentId}_$paymentStatus';
+      tx.set(_firestore.collection('notifications').doc(notificationId), {
         'userId': studentId,
         'type': 'payment_status',
         'paymentId': paymentId,

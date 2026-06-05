@@ -75,7 +75,11 @@ class SessionModel {
       documents: _toDocuments(
         data['documents'] ?? data['uploadedDocuments'] ?? data['attachments'],
       ),
-      meetLink: data['meetLink']?.toString(),
+      meetLink: () {
+        final link = data['meetLink']?.toString();
+        if (link == null || link.contains('meet.ffmuc.net') || link.contains('jitsi')) return null;
+        return link;
+      }(),
       paymentId: data['paymentId']?.toString(),
       amount:
           (data['hourlyRate'] as num?)?.toDouble() ??

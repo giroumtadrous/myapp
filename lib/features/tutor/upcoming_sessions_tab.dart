@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
-import '../../services/meeting_service.dart';
 import '../../utils/app_transitions.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -87,26 +86,67 @@ class _UpcomingSessionTile extends StatelessWidget {
 
   _UpcomingSessionTile({required this.session});
 
-  Future<void> _startMeeting(BuildContext context) async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please sign in to join the session.')),
-      );
-      return;
-    }
+  Future<void> _setMeetingLink(BuildContext context) async {
+    final controller = TextEditingController(text: session.meetLink ?? '');
+    final formKey = GlobalKey<FormState>();
 
-    try {
-      await MeetingService.instance.startMeeting(
-        context: context,
-        sessionId: session.id,
-        roomName: session.roomName,
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
+    final updated = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Set Session Link'),
+          content: Form(
+            key: formKey,
+            child: TextFormField(
+              controller: controller,
+              decoration: const InputDecoration(
+                labelText: 'Meeting Link / URL',
+                hintText: 'https://...',
+                border: OutlineInputBorder(),
+              ),
+              validator: (val) {
+                if (val == null || val.trim().isEmpty) {
+                  return 'Please enter a link';
+                }
+                final uri = Uri.tryParse(val.trim());
+                if (uri == null || !uri.hasScheme || !uri.hasAuthority) {
+                  return 'Please enter a valid URL (starting with http:// or https://)';
+                }
+                return null;
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (updated == true && context.mounted) {
+      try {
+        await _sessionRepository.updateSessionMeetLink(session.id, controller.text);
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Meeting link updated successfully.')),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update link: $e')),
+        );
+      }
     }
   }
 
@@ -243,6 +283,27 @@ class _UpcomingSessionTile extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (session.meetLink != null && session.meetLink!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const Icon(Icons.link, size: 14, color: Color(0xFF1D4ED8)),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            session.meetLink!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF1D4ED8),
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -265,14 +326,17 @@ class _UpcomingSessionTile extends StatelessWidget {
                 ],
               ),
             ),
-            IconButton(
-              onPressed: session.status == 'approved' || session.status == 'confirmed'
-                  ? () => _startMeeting(context)
-                  : null,
-              icon: const Icon(Icons.video_call_outlined),
-              color: const Color(0xFF4051B5),
-              tooltip: 'Join session',
-            ),
+            if (session.status == 'approved' || session.status == 'confirmed')
+              IconButton(
+                onPressed: () => _setMeetingLink(context),
+                icon: Icon(session.meetLink != null && session.meetLink!.isNotEmpty
+                    ? Icons.edit_note_rounded
+                    : Icons.add_link_rounded),
+                color: const Color(0xFF4051B5),
+                tooltip: session.meetLink != null && session.meetLink!.isNotEmpty
+                    ? 'Edit meeting link'
+                    : 'Add meeting link',
+              ),
             if (session.status == 'approved' || session.status == 'confirmed')
               IconButton(
                 onPressed: () => _markAsCompleted(context),

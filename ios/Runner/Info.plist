@@ -55,7 +55,7 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>TutorApp needs microphone access for audio calls.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>TutorApp needs photo access to change your profile picture.</string>
+    <string>Zelp needs photo access for your profile picture and payment proof uploads.</string>
     
     <key>UIBackgroundModes</key>
     <array>

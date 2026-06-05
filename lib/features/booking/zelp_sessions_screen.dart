@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/payment_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
-import '../../services/meeting_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -49,24 +49,7 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
     return 'All';
   }
 
-  Future<void> _startMeeting(
-    BuildContext context,
-    SessionModel session,
-    User user,
-  ) async {
-    try {
-      await MeetingService.instance.startMeeting(
-        context: context,
-        sessionId: session.id,
-        roomName: session.roomName,
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Could not join session: $e')));
-    }
-  }
+
 
   Future<void> _confirmCancel(
     BuildContext context,
@@ -316,7 +299,7 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
                       final isPast = session.dateTime.isBefore(DateTime.now());
 
                       // Determine state buttons
-                      String primaryLabel = canJoin ? 'Join Meet' : 'Details';
+                      String primaryLabel = 'Details';
                       String secondaryLabel = isPast ? 'Rebook' : 'Cancel';
 
                       if (session.status == 'payment_rejected') {
@@ -371,8 +354,6 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
                                     ),
                                   ),
                                 );
-                              } else if (canJoin) {
-                                _startMeeting(context, session, currentUser);
                               } else {
                                 Navigator.of(context).push(
                                   AppTransitions.slideFromRight(
@@ -391,6 +372,74 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
                               }
                             },
                           ),
+                          if (session.status == 'approved' || session.status == 'confirmed') ...[
+                            const SizedBox(height: 8),
+                            if (session.meetLink != null && session.meetLink!.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.link_rounded, color: Color(0xFF475569), size: 18),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        session.meetLink!,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF1E293B),
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    GestureDetector(
+                                      onTap: () {
+                                        Clipboard.setData(ClipboardData(text: session.meetLink!));
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Link copied to clipboard!'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      child: const Icon(Icons.copy_rounded, color: Color(0xFF4051B5), size: 18),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF3C7),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: const Color(0xFFFDE68A)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.info_outline, color: Color(0xFFD97706), size: 18),
+                                    const SizedBox(width: 8),
+                                    const Expanded(
+                                      child: Text(
+                                        'Meeting link will be posted by the tutor.',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFFB45309),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
                           if (session.status == 'pending_payment_verification')
                             const Padding(
                               padding: EdgeInsets.only(top: 6, left: 4),

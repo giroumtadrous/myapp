@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/app_user.dart';
+import 'fcm_token_helper.dart';
 
 /// Service for managing user profile data and FCM tokens in Firestore.
 class UserService {
@@ -104,7 +105,7 @@ class UserService {
   /// Syncs current FCM token to Firestore and keeps it updated on refresh.
   Future<void> syncFcmToken(String userId) async {
     try {
-      final token = await _messaging.getToken();
+      final token = await fetchFcmDeviceToken(_messaging);
       if (token == null || token.trim().isEmpty) {
         debugPrint('[FCM] Token is null/empty for user $userId');
       } else {
@@ -160,6 +161,16 @@ class UserService {
     } catch (e) {
       debugPrint('[UserService] Error getting FCM token: $e');
       return null;
+    }
+  }
+
+  Future<void> updateUserPhotoUrl(String uid, String photoUrl) async {
+    try {
+      await _firestore.collection(_usersCollection).doc(uid).update({
+        'photoUrl': photoUrl,
+      });
+    } catch (e) {
+      throw Exception('Failed to update user profile photo: $e');
     }
   }
 }

@@ -291,6 +291,10 @@ class _NotificationBell extends StatelessWidget {
     return StreamBuilder(
       stream: paymentRepository.userNotifications(currentUser.uid),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('[Notifications] Home bell stream error: ${snapshot.error}');
+        }
+
         final docs = snapshot.data?.docs ?? [];
         final unreadCount = docs.where((doc) => doc.data()['read'] != true).length;
 

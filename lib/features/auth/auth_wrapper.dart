@@ -6,6 +6,7 @@ import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
+import '../../widgets/notification_auth_sync.dart';
 import '../../widgets/pressable_scale.dart';
 import '../dashboard/main_navigation_screen.dart';
 import '../tutor/tutor_dashboard_screen.dart';
@@ -52,7 +53,9 @@ class AuthWrapper extends StatelessWidget {
               // No longer require email verification; continue to dashboard flow.
 
               if (!authService.isSocialProviderUser(user)) {
-                return const MainNavigationScreen();
+                return const NotificationAuthSync(
+                  child: MainNavigationScreen(),
+                );
               }
 
               return StreamBuilder<bool>(
@@ -69,7 +72,9 @@ class AuthWrapper extends StatelessWidget {
                     return const CompleteProfileScreen();
                   }
 
-                  return const MainNavigationScreen();
+                  return const NotificationAuthSync(
+                    child: MainNavigationScreen(),
+                  );
                 },
               );
             },

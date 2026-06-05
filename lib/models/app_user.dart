@@ -9,6 +9,7 @@ class AppUser {
   final String role;
   final String institution;
   final String universityOrHighSchool;
+  final String photoUrl;
 
   const AppUser({
     required this.id,
@@ -18,6 +19,7 @@ class AppUser {
     this.role = 'student',
     this.institution = '',
     this.universityOrHighSchool = '',
+    this.photoUrl = '',
   });
 
   factory AppUser.fromFirestore(DocumentSnapshot doc) {
@@ -40,7 +42,8 @@ class AppUser {
                   data['institution'] ??
                   data['school'] ??
                   '')
-              .toString(),
+               .toString(),
+      photoUrl: (data['photoUrl'] ?? data['profileImageUrl'] ?? data['photoURL'] ?? '').toString(),
     );
   }
 
@@ -51,5 +54,6 @@ class AppUser {
         'role': role,
         'institution': institution,
         'universityOrHighSchool': universityOrHighSchool,
+        'photoUrl': photoUrl,
       };
 }

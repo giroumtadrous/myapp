@@ -9,6 +9,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
+import 'fcm_token_helper.dart';
 
 const String _backgroundAndroidChannelId = 'session_updates';
 
@@ -211,7 +212,7 @@ class NotificationService {
     }
 
     try {
-      final token = await _messaging.getToken();
+      final token = await fetchFcmDeviceToken(_messaging);
       if (token == null || token.trim().isEmpty) {
         debugPrint('[FCM] Token is null/empty for user $uid');
         return;
@@ -400,7 +401,7 @@ class NotificationService {
   /// Get the current FCM token for debugging purposes
   Future<String?> getToken() async {
     try {
-      final token = await _messaging.getToken();
+      final token = await fetchFcmDeviceToken(_messaging);
       debugPrint('[FCM] Current token: ${token?.substring(0, 20)}...');
       return token;
     } catch (e) {

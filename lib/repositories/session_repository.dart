@@ -96,7 +96,6 @@ class SessionRepository {
       final generated = _generateRandomRoomName();
       tx.set(sessionRef, {
         'roomName': generated,
-        'meetLink': 'https://meet.ffmuc.net/$generated',
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
@@ -248,6 +247,13 @@ class SessionRepository {
     await _firestore.collection('sessions').doc(sessionId).update({
       'status': 'completed',
       'completedAt': FieldValue.serverTimestamp(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateSessionMeetLink(String sessionId, String meetLink) async {
+    await _firestore.collection('sessions').doc(sessionId).update({
+      'meetLink': meetLink.trim(),
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }

@@ -333,13 +333,22 @@ class TutorsRepository {
     });
   }
 
-  /// Updates only the `bio` field of a tutor document.
-  /// Throws [Exception] if the update fails.
   Future<void> updateTutorBio(String tutorId, String bio) async {
     try {
       await _firestore.collection(_collection).doc(tutorId).update({'bio': bio});
     } catch (e) {
       throw Exception('Failed to update bio: $e');
+    }
+  }
+
+  Future<void> updateTutorPhotoUrl(String tutorId, String photoUrl) async {
+    try {
+      await _firestore.collection(_collection).doc(tutorId).update({
+        'photoUrl': photoUrl,
+        'profileImageUrl': photoUrl,
+      });
+    } catch (e) {
+      throw Exception('Failed to update profile photo: $e');
     }
   }
 }
