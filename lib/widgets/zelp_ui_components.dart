@@ -225,6 +225,7 @@ class ZelpTutorCardData {
     required this.description,
     required this.price,
     required this.availability,
+    this.photoUrl = '',
   });
 
   final String photoLabel;
@@ -234,6 +235,7 @@ class ZelpTutorCardData {
   final String description;
   final String price;
   final String availability;
+  final String photoUrl;
 }
 
 class ZelpTutorCard extends StatelessWidget {
@@ -266,18 +268,26 @@ class ZelpTutorCard extends StatelessWidget {
                     color: AppTheme.background,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.fromBorderSide(AppTheme.border()),
+                    image: data.photoUrl.isNotEmpty
+                        ? DecorationImage(
+                            image: NetworkImage(data.photoUrl),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
-                  child: Center(
-                    child: Text(
-                      data.photoLabel,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
+                  child: data.photoUrl.isNotEmpty
+                      ? null
+                      : Center(
+                          child: Text(
+                            data.photoLabel,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                 ),
                 Positioned(top: 8, right: 8, child: ZelpRatingBadge(rating: data.rating)),
               ],

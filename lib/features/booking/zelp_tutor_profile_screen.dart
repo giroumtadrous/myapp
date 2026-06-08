@@ -399,18 +399,28 @@ class _ZelpTutorProfileScreenState extends State<ZelpTutorProfileScreen> {
                             height: 92,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(18),
-                              gradient: AppTheme.buttonGradient,
+                              gradient: widget.tutor.profileImageUrl != null && widget.tutor.profileImageUrl!.isNotEmpty
+                                  ? null
+                                  : AppTheme.buttonGradient,
+                              image: widget.tutor.profileImageUrl != null && widget.tutor.profileImageUrl!.isNotEmpty
+                                  ? DecorationImage(
+                                      image: NetworkImage(widget.tutor.profileImageUrl!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : null,
                             ),
-                            child: Center(
-                              child: Text(
-                                initials.isNotEmpty ? initials : 'TR',
-                                style: const TextStyle(
-                                  color: AppTheme.background,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
+                            child: widget.tutor.profileImageUrl != null && widget.tutor.profileImageUrl!.isNotEmpty
+                                ? null
+                                : Center(
+                                    child: Text(
+                                      initials.isNotEmpty ? initials : 'TR',
+                                      style: const TextStyle(
+                                        color: AppTheme.background,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(

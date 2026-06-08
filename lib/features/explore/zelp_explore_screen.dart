@@ -139,6 +139,7 @@ class _ZelpExploreScreenState extends State<ZelpExploreScreen> {
                 description: tutor.bio,
                 price: '\$${tutor.hourlyRate.toStringAsFixed(0)}/hr',
                 availability: 'Available today',
+                photoUrl: tutor.profileImageUrl ?? '',
               ),
               onTap: () {
                 Navigator.of(context).push(

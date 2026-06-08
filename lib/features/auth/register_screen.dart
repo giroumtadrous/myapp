@@ -142,19 +142,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         authProvider: 'email',
         displayName: name,
       );
-      // Proceed to profile completion flow instead of email verification.
-      final complete = await _authService.isProfileComplete(user.uid);
-      if (!mounted) return;
-
-      if (!complete) {
-        Navigator.of(context).pushReplacement(
-          AppTransitions.slideFromRight(page: const CompleteProfileScreen()),
-        );
-        return;
-      }
-
-      await _userService.syncFcmToken(user.uid);
-      await NotificationService.instance.initialize();
+      // Send verification email
+      await user.sendEmailVerification();
 
       if (mounted) {
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -178,9 +167,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              e.toString().contains('Exception:')
-                  ? e.toString().replaceFirst('Exception: ', '')
-                  : 'Failed to save profile. Please try again.',
+              e.toString().contains('username')
+                  ? e.toString().replaceAll(RegExp(r'\[.*\]'), '')
+                  : 'Registration failed: ${e.toString().replaceAll(RegExp(r'\[.*\]'), '')}',
             ),
           ),
         );

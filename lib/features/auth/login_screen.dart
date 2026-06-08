@@ -150,6 +150,13 @@ class _LoginScreenState extends State<LoginScreen> {
       // Skip email verification gate — allow sign-in flow to continue.
       await _saveRememberedEmail();
 
+      if (!user.emailVerified) {
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+        return;
+      }
+
       final complete = await _authService.isProfileComplete(user.uid);
       if (!mounted) return;
 

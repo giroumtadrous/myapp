@@ -192,20 +192,30 @@ class _ZelpMessagesScreenState extends State<ZelpMessagesScreen> {
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        gradient: AppTheme.buttonGradient,
+                        gradient: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
+                            ? null
+                            : AppTheme.buttonGradient,
+                        image: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
+                            ? DecorationImage(
+                                image: NetworkImage(tutor.profileImageUrl!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
                       ),
-                      child: Center(
-                        child: Text(
-                          initials.isNotEmpty ? initials : 'TR',
-                          style: const TextStyle(
-                            color: AppTheme.background,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
+                      child: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
+                          ? null
+                          : Center(
+                              child: Text(
+                                initials.isNotEmpty ? initials : 'TR',
+                                style: const TextStyle(
+                                  color: AppTheme.background,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

@@ -33,8 +33,14 @@
   <link rel="manifest" href="manifest.json">
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('flutter-first-frame', function () {
-        navigator.serviceWorker.register('firebase-messaging-sw.js');
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('firebase-messaging-sw.js')
+          .then(function (registration) {
+            console.log('[FCM SW] Registered scope:', registration.scope);
+          })
+          .catch(function (error) {
+            console.error('[FCM SW] Registration failed:', error);
+          });
       });
     }
   </script>

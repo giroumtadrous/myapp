@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../models/app_user.dart';
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../../services/notification_service.dart';
 import '../../services/profile_photo_storage_service.dart';
 import '../../services/theme_service.dart';
 import '../../services/user_service.dart';
@@ -25,6 +26,75 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
   final SessionRepository _sessionRepository = SessionRepository();
   bool _signingOut = false;
   bool _isUploadingPhoto = false;
+  int _photoRefreshKey = 0;
+
+  Future<void> _showNotificationDiagnostics(BuildContext context) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        title: Text('Diagnostics'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading status...'),
+          ],
+        ),
+      ),
+    );
+
+    final navigator = Navigator.of(context);
+    final status = await NotificationService.instance.getNotificationStatus();
+
+    if (!context.mounted) return;
+    navigator.pop(); // Dismiss loading
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Notification Status'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: status.entries.map((entry) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${entry.key}: ',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    Expanded(
+                      child: Text(
+                        '${entry.value}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: entry.value == false || entry.value == 'denied'
+                              ? Colors.red
+                              : Colors.green,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _pickAndUploadPhoto(String uid) async {
     if (_isUploadingPhoto) return;
@@ -96,6 +166,7 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
       await _userService.updateUserPhotoUrl(uid, downloadUrl);
 
       if (!mounted) return;
+      setState(() => _photoRefreshKey++);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile photo updated successfully.'),
@@ -202,6 +273,7 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
       appBar: AppBar(title: const Text('Profile')),
       body: SafeArea(
         child: FutureBuilder<AppUser?>(
+          key: ValueKey(_photoRefreshKey),
           future: _userService.getUser(currentUser.uid),
           builder: (context, userSnapshot) {
             final appUser = userSnapshot.data;
@@ -395,6 +467,11 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                       icon: Icons.info_outline,
                       title: 'About Zelp',
                       onTap: () {},
+                    ),
+                    _SettingsTile(
+                      icon: Icons.developer_mode,
+                      title: 'Notification Diagnostics',
+                      onTap: () => _showNotificationDiagnostics(context),
                     ),
                     const SizedBox(height: 18),
 

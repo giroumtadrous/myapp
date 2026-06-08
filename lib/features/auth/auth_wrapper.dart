@@ -13,6 +13,7 @@ import '../tutor/tutor_dashboard_screen.dart';
 import 'complete_profile_screen.dart';
 import 'social_login_screen.dart';
 import 'tutor_login_screen.dart';
+import 'verify_email_screen.dart';
 
 /// Root auth listener that swaps between sign-in and dashboard screens.
 class AuthWrapper extends StatelessWidget {
@@ -24,7 +25,7 @@ class AuthWrapper extends StatelessWidget {
     final authService = AuthService();
 
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
+      stream: FirebaseAuth.instance.userChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
@@ -50,9 +51,10 @@ class AuthWrapper extends StatelessWidget {
                 return TutorDashboardScreen(tutorId: tutorSnapshot.data!);
               }
 
-              // No longer require email verification; continue to dashboard flow.
-
               if (!authService.isSocialProviderUser(user)) {
+                if (!user.emailVerified) {
+                  return const VerifyEmailScreen();
+                }
                 return const NotificationAuthSync(
                   child: MainNavigationScreen(),
                 );
