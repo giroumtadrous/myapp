@@ -42,10 +42,12 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
     if (raw == 'payment_rejected') return 'Payment Rejected';
     if (raw == 'pending' ||
         raw == 'pending_payment_verification' ||
-        raw.contains('pending'))
+        raw.contains('pending')) {
       return 'Pending';
-    if (raw == 'approved' || raw == 'confirmed' || raw == 'booked')
+    }
+    if (raw == 'approved' || raw == 'confirmed' || raw == 'booked') {
       return 'Approved';
+    }
     return 'All';
   }
 

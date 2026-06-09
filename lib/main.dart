@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'firebase_options.dart';
 import 'features/auth/auth_wrapper.dart';
+import 'services/messaging_service.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
@@ -11,6 +12,10 @@ import 'theme/app_theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Enable persistent offline caching for Firestore
+  MessagingService.instance.setupOfflineCaching();
+
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await NotificationService.instance.initialize();
   runApp(const MyApp());

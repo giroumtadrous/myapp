@@ -14,6 +14,8 @@ import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/zelp_ui_components.dart';
 import 'manual_payment_screen.dart';
+import '../../services/messaging_service.dart';
+import '../messages/zelp_chat_screen.dart';
 
 class ZelpTutorProfileScreen extends StatefulWidget {
   final Tutor tutor;
@@ -35,7 +37,7 @@ class _ZelpTutorProfileScreenState extends State<ZelpTutorProfileScreen> {
 
   final ReviewsRepository _reviewsRepository = ReviewsRepository();
 
-  final int _selectedSubjectIndex = 0;
+  int _selectedSubjectIndex = 0;
   int _selectedDurationMinutes = 60;
   int _selectedDateIndex = 0;
   int? _selectedSlotIndex;
@@ -370,6 +372,57 @@ class _ZelpTutorProfileScreenState extends State<ZelpTutorProfileScreen> {
       appBar: AppBar(
         title: const Text('Tutor Profile'),
         actions: [
+          IconButton(
+            onPressed: () async {
+              final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+              if (currentUserId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Please log in to contact this tutor.')),
+                );
+                return;
+              }
+
+              // Calculate chatId alphabetically
+              final chatId = MessagingService.instance.getChatId(currentUserId, widget.tutor.id);
+
+              final authUser = FirebaseAuth.instance.currentUser;
+              final studentName = authUser?.displayName ?? 'Student';
+              final studentPhoto = authUser?.photoURL ?? '';
+
+              // Fetch user profile from database to get correct details
+              final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
+              final displayName = userDoc.exists
+                  ? (userDoc.data()?['name'] ?? userDoc.data()?['displayName'] ?? studentName)
+                  : studentName;
+              final photoURL = userDoc.exists
+                  ? (userDoc.data()?['photoUrl'] ?? userDoc.data()?['profileImageUrl'] ?? studentPhoto)
+                  : studentPhoto;
+
+              final currentUserMeta = ChatParticipantMetadata(
+                displayName: displayName,
+                photoURL: photoURL,
+              );
+
+              final tutorMeta = ChatParticipantMetadata(
+                displayName: widget.tutor.name,
+                photoURL: widget.tutor.profileImageUrl ?? '',
+              );
+
+              if (!context.mounted) return;
+              Navigator.of(context).push(
+                AppTransitions.slideFromRight(
+                  page: ZelpChatScreen(
+                    chatId: chatId,
+                    currentUserId: currentUserId,
+                    otherUserId: widget.tutor.id,
+                    currentUserMetadata: currentUserMeta,
+                    otherUserMetadata: tutorMeta,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+          ),
           IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
         ],
       ),
@@ -531,6 +584,41 @@ class _ZelpTutorProfileScreenState extends State<ZelpTutorProfileScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
+
+                // Subject Selector choice chips
+                if (widget.tutor.subjects.isNotEmpty) ...[
+                  const Text('Select Subject', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: List.generate(widget.tutor.subjects.length, (index) {
+                      final active = index == _selectedSubjectIndex;
+                      final s = widget.tutor.subjects[index];
+                      return PressableScale(
+                        onTap: () => setState(() => _selectedSubjectIndex = index),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: active ? AppTheme.buttonGradient : null,
+                            color: active ? null : AppTheme.surface,
+                            borderRadius: BorderRadius.circular(999),
+                            border: active ? null : Border.fromBorderSide(AppTheme.border()),
+                          ),
+                          child: Text(
+                            s,
+                            style: TextStyle(
+                              color: active ? AppTheme.background : AppTheme.primary,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // Duration segmented button
                 const Text('Duration', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),

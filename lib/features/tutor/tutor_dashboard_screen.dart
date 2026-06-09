@@ -5,6 +5,8 @@ import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutor_auth_repository.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_transitions.dart';
+import '../messages/zelp_messages_screen.dart';
 import '../tutor/other_tutors_tab.dart';
 import '../tutor/past_sessions_tab.dart';
 import '../tutor/tutor_availability_screen.dart';
@@ -86,6 +88,17 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline_rounded),
+            onPressed: () {
+              Navigator.of(context).push(
+                AppTransitions.slideFromRight(
+                  page: const ZelpMessagesScreen(),
+                ),
+              );
+            },
+            tooltip: 'Inbox',
+          ),
           IconButton(
             icon: _signingOut
                 ? const SizedBox(

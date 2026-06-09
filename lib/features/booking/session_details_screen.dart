@@ -14,6 +14,9 @@ import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../../widgets/zelp_ui_components.dart';
 import 'zelp_tutor_profile_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/messaging_service.dart';
+import '../messages/zelp_chat_screen.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final String sessionId;
@@ -283,6 +286,86 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         foregroundColor: AppTheme.textPrimary,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
+        actions: [
+          StreamBuilder<SessionDetailsData?>(
+            stream: _sessionRepository.streamSessionDetails(widget.sessionId),
+            builder: (context, snapshot) {
+              final details = snapshot.data;
+              if (details == null) return const SizedBox.shrink();
+
+              final session = details.session;
+              final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+              if (currentUserId == null) return const SizedBox.shrink();
+
+              final isTutor = currentUserId != session.studentId;
+              final myParticipantId = isTutor ? session.tutorId : session.studentId;
+              final otherUserId = isTutor ? session.studentId : session.tutorId;
+
+              return IconButton(
+                icon: const Icon(Icons.chat_bubble_outline_rounded),
+                onPressed: () async {
+                  final chatId = MessagingService.instance.getChatId(myParticipantId, otherUserId);
+
+                  final authUser = FirebaseAuth.instance.currentUser;
+                  final authName = authUser?.displayName ?? (isTutor ? 'Tutor' : 'Student');
+                  final authPhoto = authUser?.photoURL ?? '';
+
+                  // Fetch current user details from Firestore
+                  final userDoc = await FirebaseFirestore.instance.collection('users').doc(currentUserId).get();
+                  final currentDisplayName = userDoc.exists
+                      ? (userDoc.data()?['name'] ?? userDoc.data()?['displayName'] ?? authName)
+                      : authName;
+                  final currentPhotoURL = userDoc.exists
+                      ? (userDoc.data()?['photoUrl'] ?? userDoc.data()?['profileImageUrl'] ?? authPhoto)
+                      : authPhoto;
+
+                  final currentUserMeta = ChatParticipantMetadata(
+                    displayName: currentDisplayName,
+                    photoURL: currentPhotoURL,
+                  );
+
+                  // Set other user metadata
+                  String otherDisplayName = 'User';
+                  String otherPhotoURL = '';
+
+                  if (isTutor) {
+                    // The other user is the student
+                    otherDisplayName = session.studentName ?? 'Student';
+                    final studentDoc = await FirebaseFirestore.instance.collection('users').doc(otherUserId).get();
+                    if (studentDoc.exists) {
+                      otherPhotoURL = (studentDoc.data()?['photoUrl'] ?? studentDoc.data()?['profileImageUrl'] ?? '');
+                      final name = studentDoc.data()?['name'] ?? studentDoc.data()?['displayName'];
+                      if (name != null) otherDisplayName = name.toString();
+                    }
+                  } else {
+                    // The other user is the tutor
+                    otherDisplayName = details.tutor.name;
+                    otherPhotoURL = details.tutor.photoUrl ?? '';
+                  }
+
+                  final otherUserMeta = ChatParticipantMetadata(
+                    displayName: otherDisplayName,
+                    photoURL: otherPhotoURL,
+                  );
+
+                  if (!context.mounted) return;
+                  Navigator.of(context).push(
+                    AppTransitions.slideFromRight(
+                      page: ZelpChatScreen(
+                        chatId: chatId,
+                        currentUserId: myParticipantId,
+                        otherUserId: otherUserId,
+                        currentUserMetadata: currentUserMeta,
+                        otherUserMetadata: otherUserMeta,
+                      ),
+                    ),
+                  );
+                },
+                tooltip: 'Chat with ${isTutor ? (session.studentName ?? "Student") : details.tutor.name}',
+              );
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<SessionDetailsData?>(
         stream: _sessionRepository.streamSessionDetails(widget.sessionId),

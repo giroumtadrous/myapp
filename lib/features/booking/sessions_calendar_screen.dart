@@ -7,6 +7,8 @@ import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
+import '../../widgets/pressable_scale.dart';
+import '../../theme/app_theme.dart';
 import 'session_details_screen.dart';
 
 class SessionsCalendarScreen extends StatefulWidget {
@@ -30,75 +32,105 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
       ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
   }
 
-  void _showDaySessions(DateTime day, List<SessionModel> sessions) {
+  void _showDaySessions(DateTime day, List<SessionModel> sessions, bool isDark) {
     if (sessions.isEmpty) return;
 
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      isScrollControlled: true,
+      backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 DateFormat.yMMMMd().format(day),
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
               ),
-              const SizedBox(height: 10),
-              ...sessions.map((session) {
-                final isPast = session.dateTime.isBefore(DateTime.now());
-                return InkWell(
-                  borderRadius: BorderRadius.circular(12),
-                  onTap: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(this.context).push(
-                      AppTransitions.slideFromRight(
-                        page: SessionDetailsScreen(sessionId: session.id),
+              const SizedBox(height: 14),
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: sessions.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final session = sessions[index];
+                    final isPast = session.dateTime.isBefore(DateTime.now());
+                    return PressableScale(
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        Navigator.of(this.context).push(
+                          AppTransitions.slideFromRight(
+                            page: SessionDetailsScreen(sessionId: session.id),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.fromBorderSide(
+                            BorderSide(
+                              color: AppTheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.schedule_rounded,
+                              color: isPast
+                                  ? (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary)
+                                  : AppTheme.primary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    session.subject,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '${DateFormat.jm().format(session.dateTime)} • ${session.tutorName ?? session.tutorId}',
+                                    style: TextStyle(
+                                      color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.chevron_right_rounded,
+                              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                              size: 20,
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isPast ? const Color(0xFFF8FAFC) : const Color(0xFFEFF4FF),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isPast ? const Color(0xFFE2E8F0) : const Color(0xFFCAD5FF),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          color: isPast ? const Color(0xFF94A3B8) : const Color(0xFF4051B5),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                session.subject,
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                '${DateFormat.jm().format(session.dateTime)} • ${session.tutorName ?? session.tutorId}',
-                                style: const TextStyle(color: Color(0xFF475569)),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                ),
+              ),
             ],
           ),
         );
@@ -109,15 +141,23 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (user == null) {
-      return const Scaffold(
-        body: Center(child: Text('Please sign in to view your sessions calendar.')),
+      return Scaffold(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        body: const Center(
+          child: Text('Please sign in to view your sessions calendar.'),
+        ),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Sessions Calendar')),
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      appBar: AppBar(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: const Text('Sessions Calendar'),
+      ),
       body: StreamBuilder<List<SessionModel>>(
         stream: _sessionRepository.allStudentSessions(user.uid),
         builder: (context, snapshot) {
@@ -128,7 +168,12 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
           }
 
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            );
           }
 
           final sessions = snapshot.data ?? <SessionModel>[];
@@ -137,11 +182,17 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                // Calendar Container
                 Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.fromBorderSide(
+                      BorderSide(
+                        color: AppTheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+                      ),
+                    ),
                   ),
                   child: TableCalendar<SessionModel>(
                     firstDay: DateTime.utc(2020, 1, 1),
@@ -152,6 +203,56 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                     eventLoader: (day) => _sessionsForDay(sessions, day),
                     calendarFormat: CalendarFormat.month,
                     startingDayOfWeek: StartingDayOfWeek.monday,
+                    headerStyle: HeaderStyle(
+                      formatButtonVisible: false,
+                      titleCentered: true,
+                      titleTextStyle: TextStyle(
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16,
+                      ),
+                      leftChevronIcon: Icon(
+                        Icons.chevron_left_rounded,
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                      ),
+                      rightChevronIcon: Icon(
+                        Icons.chevron_right_rounded,
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                      ),
+                    ),
+                    daysOfWeekStyle: DaysOfWeekStyle(
+                      weekdayStyle: TextStyle(
+                        color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      weekendStyle: TextStyle(
+                        color: AppTheme.primary.withValues(alpha: 0.7),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    calendarStyle: CalendarStyle(
+                      outsideDaysVisible: false,
+                      defaultTextStyle: TextStyle(
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      weekendTextStyle: TextStyle(
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      selectedDecoration: const BoxDecoration(
+                        color: AppTheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      todayDecoration: BoxDecoration(
+                        color: AppTheme.primary.withValues(alpha: 0.22),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppTheme.primary.withValues(alpha: 0.5),
+                          width: 1,
+                        ),
+                      ),
+                    ),
                     calendarBuilders: CalendarBuilders(
                       markerBuilder: (context, day, daySessions) {
                         if (daySessions.isEmpty) return const SizedBox.shrink();
@@ -162,12 +263,10 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                         return Positioned(
                           bottom: 6,
                           child: Container(
-                            width: 8,
-                            height: 8,
+                            width: 6,
+                            height: 6,
                             decoration: BoxDecoration(
-                              color: hasUpcoming
-                                  ? Theme.of(context).colorScheme.primary
-                                  : const Color(0xFF9CA3AF),
+                              color: hasUpcoming ? AppTheme.primary : Colors.grey,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -180,18 +279,20 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                           (s) => !s.dateTime.isBefore(DateTime.now()),
                         );
                         return Center(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
+                          child: Container(
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
                               color: hasUpcoming
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .primary
-                                    .withValues(alpha: 0.14)
-                                  : const Color(0xFFF1F5F9),
+                                  ? AppTheme.primary.withValues(alpha: 0.14)
+                                  : (isDark ? AppTheme.darkBackground : const Color(0xFFF1F5F9)),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: hasUpcoming
+                                    ? AppTheme.primary.withValues(alpha: 0.3)
+                                    : Colors.transparent,
+                                width: 1,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: Text(
@@ -199,8 +300,8 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 color: hasUpcoming
-                                    ? Theme.of(context).colorScheme.primary
-                                    : const Color(0xFF64748B),
+                                    ? AppTheme.primary
+                                    : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
                               ),
                             ),
                           ),
@@ -213,33 +314,64 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                         _focusedDay = focusedDay;
                       });
                       final daySessions = _sessionsForDay(sessions, selectedDay);
-                      _showDaySessions(selectedDay, daySessions);
+                      _showDaySessions(selectedDay, daySessions, isDark);
                     },
                     onPageChanged: (focusedDay) {
                       _focusedDay = focusedDay;
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+
+                // Selected Day Header / Title
+                if (_selectedDay != null)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 10, left: 4),
+                      child: Text(
+                        'Sessions for ${DateFormat('MMMM d').format(_selectedDay!)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Sessions List below calendar
                 Expanded(
                   child: _selectedDay == null
-                      ? const Center(
-                          child: Text('Tap a date to view sessions.'),
+                      ? Center(
+                          child: Text(
+                            'Tap a date to view sessions.',
+                            style: TextStyle(
+                              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                            ),
+                          ),
                         )
                       : Builder(
                           builder: (context) {
                             final daySessions = _sessionsForDay(sessions, _selectedDay!);
                             if (daySessions.isEmpty) {
-                              return const Center(
-                                child: Text('No sessions on this date.'),
+                              return Center(
+                                child: Text(
+                                  'No sessions scheduled on this date.',
+                                  style: TextStyle(
+                                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                  ),
+                                ),
                               );
                             }
 
                             return ListView.separated(
+                              itemCount: daySessions.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 10),
                               itemBuilder: (context, index) {
                                 final session = daySessions[index];
                                 final isPast = session.dateTime.isBefore(DateTime.now());
-                                return ListTile(
+                                return PressableScale(
                                   onTap: () {
                                     Navigator.of(context).push(
                                       AppTransitions.slideFromRight(
@@ -247,31 +379,59 @@ class _SessionsCalendarScreenState extends State<SessionsCalendarScreen> {
                                       ),
                                     );
                                   },
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    side: BorderSide(
-                                      color: isPast
-                                          ? const Color(0xFFE2E8F0)
-                                          : const Color(0xFFCAD5FF),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.fromBorderSide(
+                                        BorderSide(
+                                          color: AppTheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  tileColor: isPast
-                                      ? const Color(0xFFF8FAFC)
-                                      : const Color(0xFFEFF4FF),
-                                  leading: Icon(
-                                    Icons.event_note,
-                                    color: isPast
-                                        ? const Color(0xFF94A3B8)
-                                        : const Color(0xFF4051B5),
-                                  ),
-                                  title: Text(session.subject),
-                                  subtitle: Text(
-                                    '${DateFormat.jm().format(session.dateTime)} • ${session.tutorName ?? session.tutorId}',
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.event_note_rounded,
+                                          color: isPast
+                                              ? (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary)
+                                              : AppTheme.primary,
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                session.subject,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                                                 fontSize: 14,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                '${DateFormat.jm().format(session.dateTime)} • ${session.tutorName ?? session.tutorId}',
+                                                style: TextStyle(
+                                                  color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 );
                               },
-                              separatorBuilder: (context, index) => const SizedBox(height: 8),
-                              itemCount: daySessions.length,
                             );
                           },
                         ),

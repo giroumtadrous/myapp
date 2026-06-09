@@ -10,6 +10,15 @@ service cloud.firestore {
       return request.auth != null &&
         exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    function isTutorLinked(tutorId) {
+      return exists(/databases/$(database)/documents/tutors/$(tutorId)) &&
+             get(/databases/$(database)/documents/tutors/$(tutorId)).data.authUid == request.auth.uid;
+    }
+    function isChatParticipant(participants) {
+      return request.auth.uid in participants ||
+             (participants.size() > 0 && isTutorLinked(participants[0])) ||
+             (participants.size() > 1 && isTutorLinked(participants[1]));
+    }
 
     // ---------------- ADMINS ----------------
     match /admins/{adminId} {
@@ -116,6 +125,23 @@ service cloud.firestore {
         && !exists(/databases/$(database)/documents/reviews/$(request.resource.data.sessionId));
 
       allow update, delete: if false;
+    }
+
+    // ---------------- CHATS & MESSAGES ----------------
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated();
+
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+        allow create: if isAuthenticated() && (
+          request.resource.data.senderId == request.auth.uid ||
+          isTutorLinked(request.resource.data.senderId)
+        ) && (
+          chatId.matches('^' + request.resource.data.senderId + '_.*') ||
+          chatId.matches('.*_' + request.resource.data.senderId + '$')
+        );
+        allow update, delete: if false;
+      }
     }
   }
 }

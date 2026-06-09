@@ -1,13 +1,11 @@
-import 'dart:convert';
-
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import '../../models/tutor_model.dart';
-import '../../repositories/tutors_repository.dart';
+import '../../services/messaging_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
+import 'zelp_chat_screen.dart';
 
 class ZelpMessagesScreen extends StatefulWidget {
   const ZelpMessagesScreen({super.key});
@@ -17,288 +15,240 @@ class ZelpMessagesScreen extends StatefulWidget {
 }
 
 class _ZelpMessagesScreenState extends State<ZelpMessagesScreen> {
-  final TutorsRepository _tutorsRepository = TutorsRepository();
-  final TextEditingController _messageController = TextEditingController();
-
-  Tutor? _activeTutor;
-  List<Map<String, dynamic>> _messages = [];
-  SharedPreferences? _prefs;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  String? _resolvedUid;
+  bool _loadingId = true;
 
   @override
   void initState() {
     super.initState();
-    _initPrefs();
+    _resolveUid();
   }
 
-  @override
-  void dispose() {
-    _messageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _initPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _prefs = prefs;
-    });
-    if (_activeTutor != null) {
-      _loadChatHistory(_activeTutor!.id);
-    }
-  }
-
-  void _loadChatHistory(String tutorId) {
-    if (_prefs == null) return;
-    final jsonStr = _prefs!.getString('chat_$tutorId');
-    if (jsonStr != null) {
-      try {
-        final decoded = json.decode(jsonStr) as List<dynamic>;
-        setState(() {
-          _messages = decoded.map((item) => Map<String, dynamic>.from(item)).toList();
-        });
-      } catch (_) {
-        setState(() {
-          _messages = [];
-        });
+  Future<void> _resolveUid() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        setState(() => _loadingId = false);
+        return;
       }
-    } else {
-      // Prepopulate mock first message if clean chat
-      setState(() {
-        _messages = [
-          {
-            'sender': 'other',
-            'text': 'Hi! Feel free to ask me any questions about our upcoming sessions or topics.',
-            'time': 'Just now',
-          }
-        ];
-      });
-      _saveChatHistory(tutorId);
+      
+      // Query if this user is a tutor to get their business ID (e.g., tutor_001)
+      final tutorQuery = await FirebaseFirestore.instance
+          .collection('tutors')
+          .where('authUid', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+
+      if (tutorQuery.docs.isNotEmpty) {
+        _resolvedUid = tutorQuery.docs.first.id;
+      } else {
+        _resolvedUid = user.uid;
+      }
+    } catch (e) {
+      debugPrint('[ZelpMessagesScreen] Error resolving UID: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _loadingId = false);
+      }
     }
-  }
-
-  Future<void> _saveChatHistory(String tutorId) async {
-    if (_prefs == null) return;
-    await _prefs!.setString('chat_$tutorId', json.encode(_messages));
-  }
-
-  void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isEmpty || _activeTutor == null) return;
-
-    final newMessage = {
-      'sender': 'me',
-      'text': text,
-      'time': DateFormat.jm(),
-    };
-
-    setState(() {
-      _messages.add(newMessage);
-      _messageController.clear();
-    });
-
-    _saveChatHistory(_activeTutor!.id);
-
-    // Dynamic mock response after 1.5 seconds for visual wow factor
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted || _activeTutor == null) return;
-      final autoReply = {
-        'sender': 'other',
-        'text': 'Sounds good! Let me review this and get back to you shortly.',
-        'time': DateFormat.jm(),
-      };
-      setState(() {
-        _messages.add(autoReply);
-      });
-      _saveChatHistory(_activeTutor!.id);
-    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    if (_loadingId) {
+      return Scaffold(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        appBar: AppBar(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: const Text('Inbox'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_resolvedUid == null) {
+      return Scaffold(
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        appBar: AppBar(
+          backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+          title: const Text('Inbox'),
+        ),
+        body: const Center(
+          child: Text(
+            'Please log in to view your messages.',
+            style: TextStyle(color: AppTheme.textSecondary),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
       appBar: AppBar(
-        title: Text(_activeTutor != null ? _activeTutor!.name : 'Inbox'),
-        leading: _activeTutor != null
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () {
-                  setState(() {
-                    _activeTutor = null;
-                  });
-                },
-              )
-            : null,
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+        title: const Text('Inbox'),
       ),
-      body: _activeTutor == null ? _buildInboxList() : _buildChatArea(),
-    );
-  }
+      body: StreamBuilder<List<ChatRoom>>(
+        stream: MessagingService.instance.getChatRoomsStream(_resolvedUid!),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
-  Widget _buildInboxList() {
-    return StreamBuilder<List<Tutor>>(
-      stream: _tutorsRepository.getTutors(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final tutors = snapshot.data ?? [];
-        if (tutors.isEmpty) {
-          return const Center(
-            child: Text(
-              'No conversation threads yet.',
-              style: TextStyle(color: AppTheme.textSecondary),
-            ),
-          );
-        }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Failed to load messages: ${snapshot.error}',
+                style: const TextStyle(color: Colors.redAccent),
+              ),
+            );
+          }
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(16),
-          itemCount: tutors.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final tutor = tutors[index];
-            final names = tutor.name.split(' ');
-            final initials = names.map((n) => n.isNotEmpty ? n[0] : '').take(2).join();
+          final chatRooms = snapshot.data ?? [];
 
-            // Get last message text if exists
-            String lastMsg = 'Tap to message ${tutor.name}';
-            if (_prefs != null) {
-              final jsonStr = _prefs!.getString('chat_${tutor.id}');
-              if (jsonStr != null) {
-                try {
-                  final decoded = json.decode(jsonStr) as List<dynamic>;
-                  if (decoded.isNotEmpty) {
-                    lastMsg = decoded.last['text'].toString();
-                  }
-                } catch (_) {}
-              }
-            }
+          if (chatRooms.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.chat_bubble_outline_rounded,
+                    size: 64,
+                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No conversation threads yet.',
+                    style: TextStyle(
+                      color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
-            return PressableScale(
-              onTap: () {
-                setState(() {
-                  _activeTutor = tutor;
-                });
-                _loadChatHistory(tutor.id);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppTheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.fromBorderSide(AppTheme.border()),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
-                            ? null
-                            : AppTheme.buttonGradient,
-                        image: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
-                            ? DecorationImage(
-                                image: NetworkImage(tutor.profileImageUrl!),
-                                fit: BoxFit.cover,
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: chatRooms.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 10),
+            itemBuilder: (context, index) {
+              final chatRoom = chatRooms[index];
+              
+              // Identify the other participant's UID
+              final otherUserId = chatRoom.participants.firstWhere(
+                (id) => id != _resolvedUid,
+                orElse: () => '',
+              );
+
+              if (otherUserId.isEmpty) return const SizedBox.shrink();
+
+              // Get other participant and current participant metadata from the map
+              final otherUserMeta = chatRoom.metadata[otherUserId] ??
+                  ChatParticipantMetadata(displayName: 'User', photoURL: '');
+              
+              final currentUserMeta = chatRoom.metadata[_resolvedUid] ??
+                  ChatParticipantMetadata(
+                    displayName: _auth.currentUser?.displayName ?? 'Me',
+                    photoURL: _auth.currentUser?.photoURL ?? '',
+                  );
+
+              final names = otherUserMeta.displayName.split(' ');
+              final initials = names.map((n) => n.isNotEmpty ? n[0] : '').take(2).join();
+
+              return PressableScale(
+                onTap: () {
+                  Navigator.of(context).push(
+                    AppTransitions.slideFromRight(
+                      page: ZelpChatScreen(
+                        chatId: chatRoom.id,
+                        currentUserId: _resolvedUid!,
+                        otherUserId: otherUserId,
+                        currentUserMetadata: currentUserMeta,
+                        otherUserMetadata: otherUserMeta,
+                      ),
+                    ),
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.fromBorderSide(
+                      BorderSide(
+                        color: AppTheme.primary.withValues(alpha: isDark ? 0.22 : 0.14),
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: otherUserMeta.photoURL.isNotEmpty ? null : AppTheme.buttonGradient,
+                          image: otherUserMeta.photoURL.isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(otherUserMeta.photoURL),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: otherUserMeta.photoURL.isEmpty
+                            ? Center(
+                                child: Text(
+                                  initials.isNotEmpty ? initials : 'TR',
+                                  style: const TextStyle(
+                                    color: AppTheme.background,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               )
                             : null,
                       ),
-                      child: tutor.profileImageUrl != null && tutor.profileImageUrl!.isNotEmpty
-                          ? null
-                          : Center(
-                              child: Text(
-                                initials.isNotEmpty ? initials : 'TR',
-                                style: const TextStyle(
-                                  color: AppTheme.background,
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 16,
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  otherUserMeta.displayName,
+                                  style: TextStyle(
+                                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
-                              ),
+                                Text(
+                                  _formatTimestamp(chatRoom.updatedAt),
+                                  style: TextStyle(
+                                    color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
                             ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                tutor.name,
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            const SizedBox(height: 4),
+                            Text(
+                              chatRoom.lastMessage.isNotEmpty ? chatRoom.lastMessage : 'Tap to message',
+                              style: TextStyle(
+                                color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                                fontSize: 13,
                               ),
-                              const Text('Active', style: TextStyle(color: Colors.green, fontSize: 11)),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            lastMsg,
-                            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildChatArea() {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView.builder(
-            reverse: true,
-            padding: const EdgeInsets.all(16),
-            itemCount: _messages.length,
-            itemBuilder: (context, index) {
-              final msg = _messages[_messages.length - 1 - index];
-              final isMine = msg['sender'] == 'me';
-              return Align(
-                alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  decoration: BoxDecoration(
-                    gradient: isMine ? AppTheme.buttonGradient : null,
-                    color: isMine ? null : AppTheme.surface,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: isMine ? const Radius.circular(16) : Radius.zero,
-                      bottomRight: isMine ? Radius.zero : const Radius.circular(16),
-                    ),
-                    border: isMine ? null : Border.fromBorderSide(AppTheme.border()),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        msg['text'].toString(),
-                        style: TextStyle(color: isMine ? AppTheme.background : AppTheme.textPrimary, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Align(
-                        alignment: Alignment.bottomRight,
-                        child: Text(
-                          msg['time']?.toString() ?? '',
-                          style: TextStyle(
-                            color: isMine ? AppTheme.background.withValues(alpha: 0.6) : AppTheme.textSecondary,
-                            fontSize: 10,
-                          ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
                       ),
                     ],
@@ -306,56 +256,26 @@ class _ZelpMessagesScreenState extends State<ZelpMessagesScreen> {
                 ),
               );
             },
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            border: Border(top: AppTheme.border()),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _messageController,
-                  decoration: const InputDecoration(
-                    hintText: 'Write a message...',
-                    border: InputBorder.none,
-                    isDense: true,
-                  ),
-                  onSubmitted: (_) => _sendMessage(),
-                ),
-              ),
-              const SizedBox(width: 10),
-              PressableScale(
-                onTap: _sendMessage,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    gradient: AppTheme.buttonGradient,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: AppTheme.glow(),
-                  ),
-                  child: const Icon(Icons.send_rounded, color: AppTheme.background, size: 20),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
-}
 
-// Minimal placeholder DateFormat to avoid dependencies issues if not imported
-class DateFormat {
-  static String jm() {
+  String _formatTimestamp(Timestamp timestamp) {
     final now = DateTime.now();
-    final hour = now.hour > 12 ? now.hour - 12 : (now.hour == 0 ? 12 : now.hour);
-    final minute = now.minute.toString().padLeft(2, '0');
-    final ampm = now.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $ampm';
+    final date = timestamp.toDate();
+    final difference = now.difference(date);
+
+    if (difference.inDays >= 7) {
+      return '${date.day}/${date.month}/${date.year}';
+    } else if (difference.inDays >= 1) {
+      return '${difference.inDays}d ago';
+    } else {
+      final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+      final minute = date.minute.toString().padLeft(2, '0');
+      final ampm = date.hour >= 12 ? 'PM' : 'AM';
+      return '$hour:$minute $ampm';
+    }
   }
 }

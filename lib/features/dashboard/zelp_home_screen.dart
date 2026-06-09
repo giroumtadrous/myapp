@@ -10,6 +10,7 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
 import '../../widgets/zelp_ui_components.dart';
+import '../booking/university_tutors_screen.dart';
 import '../booking/zelp_tutor_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/zelp_profile_screen.dart';
@@ -28,6 +29,42 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
 
   int _categoryIndex = 0;
   final List<String> _categories = const ['Math', 'Physics', 'Writing', 'Coding'];
+  String _searchQuery = '';
+
+  bool _tutorMatchesCategory(Tutor tutor, String categoryName) {
+    final cat = categoryName.toLowerCase();
+    
+    // 1. Check main categories
+    if (tutor.main.any((m) => m.toLowerCase() == cat || m.toLowerCase().contains(cat) || cat.contains(m.toLowerCase()))) {
+      return true;
+    }
+    
+    // 2. Check subjects
+    if (tutor.subjects.any((s) => s.toLowerCase() == cat || s.toLowerCase().contains(cat) || cat.contains(s.toLowerCase()))) {
+      return true;
+    }
+    
+    // 3. Synonym matching
+    if (cat == 'math') {
+      final keywords = ['math', 'calc', 'algebra', 'geometry', 'trig', 'arithmetic', 'stats', 'statistics', 'maths'];
+      return tutor.subjects.any((s) => keywords.any((k) => s.toLowerCase().contains(k))) ||
+             tutor.main.any((m) => keywords.any((k) => m.toLowerCase().contains(k)));
+    } else if (cat == 'physics') {
+      final keywords = ['physics', 'phys', 'mechanic', 'thermodynamic', 'optics', 'electromagnet'];
+      return tutor.subjects.any((s) => keywords.any((k) => s.toLowerCase().contains(k))) ||
+             tutor.main.any((m) => keywords.any((k) => m.toLowerCase().contains(k)));
+    } else if (cat == 'writing') {
+      final keywords = ['writing', 'write', 'essay', 'english', 'literature', 'grammar', 'composition'];
+      return tutor.subjects.any((s) => keywords.any((k) => s.toLowerCase().contains(k))) ||
+             tutor.main.any((m) => keywords.any((k) => m.toLowerCase().contains(k)));
+    } else if (cat == 'coding') {
+      final keywords = ['coding', 'code', 'python', 'java', 'c++', 'javascript', 'html', 'css', 'programming', 'computer', 'software', 'develop'];
+      return tutor.subjects.any((s) => keywords.any((k) => s.toLowerCase().contains(k))) ||
+             tutor.main.any((m) => keywords.any((k) => m.toLowerCase().contains(k)));
+    }
+    
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +175,14 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
               ),
               const SizedBox(height: 16),
               
-              const ZelpSearchBar(hintText: 'Find tutors or subjects'),
+              ZelpSearchBar(
+                hintText: 'Find tutors or subjects',
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
               const SizedBox(height: 16),
               
               ZelpCategoryTabs(
@@ -172,7 +216,33 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
                       );
                     },
                   ),
-                  TextButton(onPressed: () {}, child: const Text('View all')),
+                  FutureBuilder<AppUser?>(
+                    future: currentUserProfileFuture,
+                    builder: (context, userSnap) {
+                      return TextButton(
+                        onPressed: () {
+                          final institutionRaw =
+                              userSnap.data?.universityOrHighSchool.isNotEmpty == true
+                                  ? userSnap.data!.universityOrHighSchool
+                                  : userSnap.data?.institution ?? '';
+                          if (institutionRaw.isNotEmpty) {
+                            Navigator.of(context).push(
+                              AppTransitions.slideFromRight(
+                                page: UniversityTutorsScreen(universityName: institutionRaw),
+                              ),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please add your university in your profile first.'),
+                              ),
+                            );
+                          }
+                        },
+                        child: const Text('View all'),
+                      );
+                    },
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -218,25 +288,46 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
                           );
                         }
 
-                        final tutors = snapshot.data!
-                            .where(
-                              (tutor) =>
-                                  tutor.university.trim().toLowerCase() == studentInstitution,
-                            )
-                            .toList()
-                          ..sort((a, b) => b.rating.compareTo(a.rating));
+                        final category = _categories[_categoryIndex];
+                        final query = _searchQuery.trim().toLowerCase();
 
-                        if (tutors.isEmpty) {
+                        final filteredTutors = snapshot.data!.where((tutor) {
+                          // 1. Must match student university
+                          if (tutor.university.trim().toLowerCase() != studentInstitution) {
+                            return false;
+                          }
+                          
+                          // 2. Must match selected category
+                          if (!_tutorMatchesCategory(tutor, category)) {
+                            return false;
+                          }
+
+                          // 3. Must match search query if provided
+                          if (query.isNotEmpty) {
+                            final nameMatch = tutor.name.toLowerCase().contains(query);
+                            final bioMatch = tutor.bio.toLowerCase().contains(query);
+                            final subjectMatch = tutor.subjects.any((s) => s.toLowerCase().contains(query));
+                            if (!nameMatch && !bioMatch && !subjectMatch) {
+                              return false;
+                            }
+                          }
+
+                          return true;
+                        }).toList();
+
+                        filteredTutors.sort((a, b) => b.rating.compareTo(a.rating));
+
+                        if (filteredTutors.isEmpty) {
                           return const Center(
                             child: Text(
-                              'No tutors from your university are available right now.',
+                              'No matching tutors from your university are available right now.',
                               style: TextStyle(color: AppTheme.textSecondary),
                               textAlign: TextAlign.center,
                             ),
                           );
                         }
 
-                        final topTutors = tutors.take(5).toList();
+                        final topTutors = filteredTutors.take(5).toList();
 
                         return ListView.separated(
                           scrollDirection: Axis.horizontal,
