@@ -13,6 +13,7 @@ class Tutor {
   final int totalReviews;
   final int completedSessionsCount;
   final Map<String, List<String>> weeklyAvailability;
+  final bool isAvailableForSOS;
 
   Tutor({
     required this.id,
@@ -29,6 +30,7 @@ class Tutor {
     required this.main,
     required this.weeklyAvailability,
     this.subjectsByMain,
+    this.isAvailableForSOS = false,
   });
 
   factory Tutor.fromMap(String id, Map<String, dynamic> data) {
@@ -59,6 +61,7 @@ class Tutor {
       weeklyAvailability: _toWeeklyAvailability(
         data['weeklyAvailability'] ?? data['weekly_availability'],
       ),
+      isAvailableForSOS: data['isAvailableForSOS'] == true,
     );
   }
 
@@ -108,6 +111,7 @@ class Tutor {
       'main': main,
       'subjects_by_main': subjectsByMain,
       'weeklyAvailability': weeklyAvailability,
+      'isAvailableForSOS': isAvailableForSOS,
     };
   }
 
@@ -144,6 +148,7 @@ class Tutor {
     int? totalReviews,
     int? completedSessionsCount,
     String? university,
+    bool? isAvailableForSOS,
   }) {
     return Tutor(
       id: id,
@@ -161,6 +166,7 @@ class Tutor {
       main: main,
       weeklyAvailability: weeklyAvailability,
       subjectsByMain: subjectsByMain,
+      isAvailableForSOS: isAvailableForSOS ?? this.isAvailableForSOS,
     );
   }
 }

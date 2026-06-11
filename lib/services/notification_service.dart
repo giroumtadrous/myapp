@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../firebase_options.dart';
+import '../main.dart';
+import '../features/tutor/sos_accept_dialog.dart';
 import 'fcm_token_helper.dart';
 
 const String _backgroundAndroidChannelId = 'session_updates';
@@ -75,7 +79,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       title,
       body,
       details,
-      payload: message.data.isEmpty ? null : message.data.toString(),
+      payload: message.data.isEmpty ? null : jsonEncode(message.data),
     );
 
     debugPrint('[FCM background] Shown: ${title ?? ''} | ${body ?? ''}');
@@ -259,10 +263,12 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       _logIncomingMessage(state: 'foreground', message: message);
       await _showForegroundNotification(message);
+      _handleNotificationData(message.data);
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       _logIncomingMessage(state: 'opened-app', message: message);
+      _handleNotificationData(message.data);
     });
   }
 
@@ -272,9 +278,32 @@ class NotificationService {
       if (initialMessage == null) return;
 
       _logIncomingMessage(state: 'terminated', message: initialMessage);
+      
+      // Delay slightly to allow the app to render the first frame
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _handleNotificationData(initialMessage.data);
+      });
     } catch (e, st) {
       debugPrint('[FCM] Failed to process initial message: $e');
       debugPrint(st.toString());
+    }
+  }
+
+  void _handleNotificationData(Map<String, dynamic> data) {
+    if (data.isEmpty) return;
+    
+    final type = data['type']?.toString();
+    if (type == 'sos_request') {
+      final subject = data['subject']?.toString() ?? 'a subject';
+      final sosRequestId = data['sosRequestId']?.toString();
+      
+      if (sosRequestId != null && navigatorKey.currentContext != null) {
+        SosAcceptDialog.show(
+          context: navigatorKey.currentContext!,
+          subject: subject,
+          sosRequestId: sosRequestId,
+        );
+      }
     }
   }
 
@@ -332,7 +361,19 @@ class NotificationService {
         macOS: darwinSettings,
       );
 
-      await _localNotifications.initialize(initializationSettings);
+      await _localNotifications.initialize(
+        initializationSettings,
+        onDidReceiveNotificationResponse: (response) {
+          if (response.payload != null) {
+            try {
+              final data = jsonDecode(response.payload!) as Map<String, dynamic>;
+              _handleNotificationData(data);
+            } catch (e) {
+              debugPrint('[FCM] Failed to parse local notification payload: $e');
+            }
+          }
+        },
+      );
 
       final androidPlugin = _localNotifications
           .resolvePlatformSpecificImplementation<
@@ -385,7 +426,7 @@ class NotificationService {
         title,
         body,
         details,
-        payload: message.data.isEmpty ? null : message.data.toString(),
+        payload: message.data.isEmpty ? null : jsonEncode(message.data),
       );
     } catch (e, st) {
       debugPrint('[FCM] Failed to show foreground notification: $e');

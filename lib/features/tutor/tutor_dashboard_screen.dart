@@ -10,6 +10,7 @@ import '../messages/zelp_messages_screen.dart';
 import '../tutor/other_tutors_tab.dart';
 import '../tutor/past_sessions_tab.dart';
 import '../tutor/tutor_availability_screen.dart';
+import '../tutor/tutor_earnings_screen.dart';
 import '../tutor/tutor_own_profile_screen.dart';
 import '../tutor/upcoming_sessions_tab.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -146,6 +147,11 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
             label: 'Sessions',
           ),
           NavigationDestination(
+            icon: Icon(Icons.account_balance_wallet_outlined),
+            selectedIcon: Icon(Icons.account_balance_wallet),
+            label: 'Earnings',
+          ),
+          NavigationDestination(
             icon: Icon(Icons.calendar_month_outlined),
             selectedIcon: Icon(Icons.calendar_month),
             label: 'Availability',
@@ -174,6 +180,11 @@ class _TutorDashboardScreenState extends State<TutorDashboardScreen> {
           tutorId: widget.tutorId,
         );
       case 2:
+        return TutorEarningsScreen(
+          key: const ValueKey('tutor-earnings-tab'),
+          tutorId: widget.tutorId,
+        );
+      case 3:
         return TutorAvailabilityScreen(
           key: const ValueKey('tutor-availability-tab'),
           tutorId: widget.tutorId,

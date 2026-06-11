@@ -12,6 +12,7 @@ import '../../widgets/pressable_scale.dart';
 import '../../widgets/zelp_ui_components.dart';
 import '../booking/university_tutors_screen.dart';
 import '../booking/zelp_tutor_profile_screen.dart';
+import '../booking/sos_booking_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/zelp_profile_screen.dart';
 
@@ -78,6 +79,24 @@ class _ZelpHomeScreenState extends State<ZelpHomeScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.of(context).push(
+            AppTransitions.slideFromRight(
+              page: const SosBookingScreen(),
+            ),
+          );
+        },
+        backgroundColor: const Color(0xFFEF4444),
+        icon: const Text('🆘', style: TextStyle(fontSize: 18)),
+        label: const Text(
+          'SOS',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),

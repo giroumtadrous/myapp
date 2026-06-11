@@ -32,6 +32,12 @@ class SessionModel {
   final bool? refundDone;
   final DateTime? refundProcessedAt;
   final DateTime? refundedAt;
+  // Group session fields
+  final String type; // "solo" | "group" | "sos"
+  final int maxStudents;
+  final int currentStudents;
+  final double pricePerStudent;
+  final List<String> studentIds;
 
   const SessionModel({
     required this.id,
@@ -56,16 +62,31 @@ class SessionModel {
     this.refundDone,
     this.refundProcessedAt,
     this.refundedAt,
+    this.type = 'solo',
+    this.maxStudents = 1,
+    this.currentStudents = 1,
+    this.pricePerStudent = 0,
+    this.studentIds = const [],
   });
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final dt = _parseDateTime(data);
+    final parsedAmount =
+        (data['hourlyRate'] as num?)?.toDouble() ??
+        (data['amount'] as num?)?.toDouble() ??
+        0;
+    final parsedMaxStudents = (data['maxStudents'] as num?)?.toInt() ?? 1;
+    final parsedStudentId = (data['studentId'] ?? data['studentID'] ?? '').toString();
+    final rawStudentIds = data['studentIds'];
+    final parsedStudentIds = rawStudentIds is List
+        ? rawStudentIds.map((e) => e.toString()).toList()
+        : (parsedStudentId.isNotEmpty ? [parsedStudentId] : <String>[]);
 
     return SessionModel(
       id: doc.id,
       tutorId: (data['tutorId'] ?? data['tutorID'] ?? '').toString(),
-      studentId: (data['studentId'] ?? data['studentID'] ?? '').toString(),
+      studentId: parsedStudentId,
       subject: (data['subject'] ?? '').toString(),
       dateTime: dt,
       status: (data['status'] ?? 'pending').toString(),
@@ -81,10 +102,7 @@ class SessionModel {
         return link;
       }(),
       paymentId: data['paymentId']?.toString(),
-      amount:
-          (data['hourlyRate'] as num?)?.toDouble() ??
-          (data['amount'] as num?)?.toDouble() ??
-          0,
+      amount: parsedAmount,
       slotCount: _toSlotCount(data),
       reservedSlots: _toReservedSlots(data),
       refundStatus: (data['refundStatus'] ?? data['refund_status'])?.toString(),
@@ -93,6 +111,12 @@ class SessionModel {
         data['refundProcessedAt'] ?? data['refund_processed_at'],
       ),
       refundedAt: _toDateTime(data['refundedAt'] ?? data['refunded_at']),
+      type: (data['type'] ?? 'solo').toString(),
+      maxStudents: parsedMaxStudents < 1 ? 1 : parsedMaxStudents,
+      currentStudents: (data['currentStudents'] as num?)?.toInt() ?? parsedStudentIds.length,
+      pricePerStudent: (data['pricePerStudent'] as num?)?.toDouble() ??
+          (parsedMaxStudents > 0 ? parsedAmount / parsedMaxStudents : parsedAmount),
+      studentIds: parsedStudentIds,
     );
   }
 
@@ -188,6 +212,11 @@ class SessionModel {
     bool? refundDone,
     DateTime? refundProcessedAt,
     DateTime? refundedAt,
+    String? type,
+    int? maxStudents,
+    int? currentStudents,
+    double? pricePerStudent,
+    List<String>? studentIds,
   }) {
     return SessionModel(
       id: id,
@@ -212,6 +241,11 @@ class SessionModel {
       refundDone: refundDone ?? this.refundDone,
       refundProcessedAt: refundProcessedAt ?? this.refundProcessedAt,
       refundedAt: refundedAt ?? this.refundedAt,
+      type: type ?? this.type,
+      maxStudents: maxStudents ?? this.maxStudents,
+      currentStudents: currentStudents ?? this.currentStudents,
+      pricePerStudent: pricePerStudent ?? this.pricePerStudent,
+      studentIds: studentIds ?? this.studentIds,
     );
   }
 

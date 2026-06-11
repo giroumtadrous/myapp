@@ -9,6 +9,8 @@ import 'services/notification_service.dart';
 import 'services/theme_service.dart';
 import 'theme/app_theme.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -55,6 +57,7 @@ class _MyAppState extends State<MyApp> {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: _themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      navigatorKey: navigatorKey,
       home: const AuthWrapper(),
     );
   }

@@ -33,6 +33,17 @@ service cloud.firestore {
         (request.auth.uid == userId || isAdmin());
     }
 
+    // ---------------- STUDENTS ----------------
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == studentId;
+      
+      match /progress/{subject} {
+        allow read: if isAuthenticated() && request.auth.uid == studentId;
+        allow write: if false; // Handled by Cloud Functions
+      }
+    }
+
     // ---------------- USERNAME CLAIMS ----------------
     match /usernameClaims/{username} {
       allow read: if true;
@@ -48,22 +59,23 @@ service cloud.firestore {
       allow update: if isAuthenticated() &&
         (request.auth.uid == resource.data.authUid || isAdmin());
       allow create, delete: if isAdmin();
+
+      match /wallet/summary {
+        allow read: if isAuthenticated() && (request.auth.uid == get(/databases/$(database)/documents/tutors/$(tutorId)).data.authUid || isAdmin());
+        allow write: if isAdmin(); 
+      }
+      
+      match /wallet/transactions/items/{itemId} {
+        allow read: if isAuthenticated() && (request.auth.uid == get(/databases/$(database)/documents/tutors/$(tutorId)).data.authUid || isAdmin());
+        allow write: if isAdmin();
+      }
     }
 
     // ---------------- SESSIONS ----------------
     match /sessions/{sessionId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isAuthenticated() &&
-        request.auth.uid == resource.data.tutorId &&
-        request.resource.data.status == "completed";
-      allow update: if isAuthenticated() &&
-        request.resource.data.status == "cancelled" &&
-        resource.data.status != "completed" &&
-        request.auth.uid in [resource.data.studentId, resource.data.tutorId];
-      allow update: if isAuthenticated() &&
-        request.resource.data.status == "pending_payment_verification" &&
-        request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() &&
         request.auth.uid in [resource.data.studentId, resource.data.tutorId] &&
         resource.data.status == "cancelled" &&
@@ -84,6 +96,21 @@ service cloud.firestore {
       allow read: if isAuthenticated() &&
         (request.auth.uid == resource.data.studentId || isAdmin());
       allow update, delete: if isAdmin();
+    }
+
+    // ---------------- PAYOUT REQUESTS ----------------
+    match /payout_requests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------------- SOS REQUESTS ----------------
+    match /sos_requests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.studentId;
     }
 
     // ---------------- NOTIFICATIONS ----------------
@@ -140,7 +167,8 @@ service cloud.firestore {
           chatId.matches('^' + request.resource.data.senderId + '_.*') ||
           chatId.matches('.*_' + request.resource.data.senderId + '$')
         );
-        allow update, delete: if false;
+        allow update: if isAuthenticated() && isChatParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+        allow delete: if false;
       }
     }
   }

@@ -444,4 +444,374 @@ exports.notifySessionUpdated = onDocumentUpdated(
   },
 );
 
+// ── Feature 1: Student Progress Update ──────────────────────────────────────
+exports.onSessionCompletedUpdateProgress = onDocumentUpdated(
+  "sessions/{sessionId}",
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
 
+    const oldStatus = String(before.status || "");
+    const newStatus = String(after.status || "");
+
+    if (oldStatus === "completed" || newStatus !== "completed") return;
+
+    const sessionId = event.params.sessionId;
+    const subject = String(after.subject || "Unknown");
+    const tutorId = String(after.tutorId || "");
+    const durationMinutes = Number(after.durationMinutes || after.duration || 60);
+
+    // Collect all student IDs from the session
+    const studentIds = new Set();
+    const singleStudentId = String(after.studentId || "").trim();
+    if (singleStudentId) studentIds.add(singleStudentId);
+    if (Array.isArray(after.studentIds)) {
+      after.studentIds.forEach((id) => {
+        const trimmed = String(id || "").trim();
+        if (trimmed) studentIds.add(trimmed);
+      });
+    }
+
+    if (studentIds.size === 0) {
+      logger.warn("No students found for progress update", {sessionId});
+      return;
+    }
+
+    const db = admin.firestore();
+
+    await Promise.all([...studentIds].map(async (studentId) => {
+      const progressRef = db
+        .collection("students")
+        .doc(studentId)
+        .collection("progress")
+        .doc(subject);
+
+      try {
+        await db.runTransaction(async (tx) => {
+          const progressDoc = await tx.get(progressRef);
+
+          if (progressDoc.exists) {
+            tx.update(progressRef, {
+              totalSessions: admin.firestore.FieldValue.increment(1),
+              totalMinutes: admin.firestore.FieldValue.increment(durationMinutes),
+              lastSessionAt: admin.firestore.FieldValue.serverTimestamp(),
+              tutorsUsed: admin.firestore.FieldValue.arrayUnion([tutorId]),
+            });
+          } else {
+            tx.set(progressRef, {
+              totalSessions: 1,
+              totalMinutes: durationMinutes,
+              lastSessionAt: admin.firestore.FieldValue.serverTimestamp(),
+              tutorsUsed: tutorId ? [tutorId] : [],
+            });
+          }
+        });
+        logger.info("Progress updated", {sessionId, studentId, subject});
+      } catch (error) {
+        logger.error("Failed to update progress", {sessionId, studentId, subject, error});
+      }
+    }));
+  },
+);
+
+// ── Feature 2: Group Session Full Check ─────────────────────────────────────
+exports.onGroupSessionStudentJoined = onDocumentUpdated(
+  "sessions/{sessionId}",
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+
+    const sessionType = String(after.type || "solo");
+    if (sessionType !== "group") return;
+
+    const beforeStudents = Array.isArray(before.studentIds) ? before.studentIds : [];
+    const afterStudents = Array.isArray(after.studentIds) ? after.studentIds : [];
+
+    // Only proceed if a student was added
+    if (afterStudents.length <= beforeStudents.length) return;
+
+    const maxStudents = Number(after.maxStudents || 5);
+    const currentStudents = afterStudents.length;
+    const sessionId = event.params.sessionId;
+
+    const updates = {
+      currentStudents: currentStudents,
+      pricePerStudent: maxStudents > 0 ? (Number(after.amount || after.hourlyRate || 0)) / maxStudents : 0,
+    };
+
+    if (currentStudents >= maxStudents) {
+      updates.status = "full";
+      logger.info("Group session is now full", {sessionId, currentStudents, maxStudents});
+    }
+
+    try {
+      await admin.firestore().collection("sessions").doc(sessionId).update(updates);
+      logger.info("Group session updated", {sessionId, currentStudents, maxStudents});
+    } catch (error) {
+      logger.error("Failed to update group session", {sessionId, error});
+    }
+  },
+);
+
+// ── Feature 3: Tutor Earnings on Session Complete ───────────────────────────
+exports.onSessionCompletedUpdateEarnings = onDocumentUpdated(
+  "sessions/{sessionId}",
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+
+    const oldStatus = String(before.status || "");
+    const newStatus = String(after.status || "");
+
+    if (oldStatus === "completed" || newStatus !== "completed") return;
+
+    const sessionId = event.params.sessionId;
+    const tutorId = String(after.tutorId || "").trim();
+    if (!tutorId) {
+      logger.warn("No tutorId for earnings update", {sessionId});
+      return;
+    }
+
+    const amount = Number(after.amount || after.hourlyRate || 0);
+    const subject = String(after.subject || "");
+    const studentId = String(after.studentId || "");
+
+    const db = admin.firestore();
+    const walletTxRef = db
+      .collection("tutors")
+      .doc(tutorId)
+      .collection("wallet")
+      .doc("transactions")
+      .collection("items")
+      .doc();
+
+    const walletSummaryRef = db
+      .collection("tutors")
+      .doc(tutorId)
+      .collection("wallet")
+      .doc("summary");
+
+    try {
+      // Create transaction entry
+      await walletTxRef.set({
+        sessionId,
+        amount,
+        status: "pending_payout",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        subject,
+        studentId,
+      });
+
+      // Update summary
+      await walletSummaryRef.set({
+        totalEarned: admin.firestore.FieldValue.increment(amount),
+        pendingPayout: admin.firestore.FieldValue.increment(amount),
+      }, {merge: true});
+
+      logger.info("Earnings updated", {sessionId, tutorId, amount});
+    } catch (error) {
+      logger.error("Failed to update earnings", {sessionId, tutorId, error});
+    }
+  },
+);
+
+// ── Feature 4: Review Trigger Notification ──────────────────────────────────
+exports.onSessionCompletedReviewReminder = onDocumentUpdated(
+  "sessions/{sessionId}",
+  async (event) => {
+    const before = event.data?.before?.data() || {};
+    const after = event.data?.after?.data() || {};
+
+    const oldStatus = String(before.status || "");
+    const newStatus = String(after.status || "");
+
+    if (oldStatus === "completed" || newStatus !== "completed") return;
+
+    const sessionId = event.params.sessionId;
+    const tutorId = String(after.tutorId || "").trim();
+    const subject = String(after.subject || "");
+
+    // Collect student IDs
+    const studentIds = new Set();
+    const singleStudentId = String(after.studentId || "").trim();
+    if (singleStudentId) studentIds.add(singleStudentId);
+    if (Array.isArray(after.studentIds)) {
+      after.studentIds.forEach((id) => {
+        const trimmed = String(id || "").trim();
+        if (trimmed) studentIds.add(trimmed);
+      });
+    }
+
+    if (studentIds.size === 0) return;
+
+    // Wait 5 minutes before sending review reminder
+    setTimeout(async () => {
+      try {
+        // Get tutor name
+        let tutorName = "your tutor";
+        if (tutorId) {
+          const tutorDoc = await admin.firestore().collection("tutors").doc(tutorId).get();
+          if (tutorDoc.exists) {
+            tutorName = String(tutorDoc.get("name") || "your tutor");
+          }
+        }
+
+        const title = "How was your session?";
+        const body = `Rate your session with ${tutorName} in ${subject}`;
+
+        await Promise.all([...studentIds].map(async (studentId) => {
+          // Send FCM push
+          await notifyUser({
+            userId: studentId,
+            title,
+            body,
+            data: {
+              type: "review_request",
+              sessionId,
+            },
+            context: "onSessionCompletedReviewReminder",
+          });
+
+          // Create in-app notification
+          const notifId = `${studentId}_review_${sessionId}`;
+          await admin.firestore().collection("notifications").doc(notifId).set({
+            userId: studentId,
+            title,
+            message: body,
+            read: false,
+            type: "review_request",
+            sessionId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          logger.info("Review reminder sent", {sessionId, studentId});
+        }));
+      } catch (error) {
+        logger.error("Failed to send review reminders", {sessionId, error});
+      }
+    }, 5 * 60 * 1000); // 5 minutes
+  },
+);
+
+// ── Feature 5: SOS Request — Notify Tutors ──────────────────────────────────
+exports.onSosRequestCreatedNotifyTutors = onDocumentCreated(
+  "sos_requests/{requestId}",
+  async (event) => {
+    const data = event.data?.data() || {};
+    const requestId = event.params.requestId;
+    const subject = String(data.subject || "");
+    const studentId = String(data.studentId || "");
+
+    if (!subject) {
+      logger.warn("SOS request missing subject", {requestId});
+      return;
+    }
+
+    try {
+      // Query tutors available for SOS
+      const tutorsSnap = await admin.firestore()
+        .collection("tutors")
+        .where("isAvailableForSOS", "==", true)
+        .get();
+
+      const matchingTutors = tutorsSnap.docs.filter((doc) => {
+        const tutorData = doc.data();
+        const subjects = Array.isArray(tutorData.subjects) ? tutorData.subjects : [];
+        return subjects.some((s) =>
+          String(s).toLowerCase() === subject.toLowerCase()
+        );
+      });
+
+      logger.info("SOS: found matching tutors", {
+        requestId,
+        subject,
+        count: matchingTutors.length,
+      });
+
+      await Promise.all(matchingTutors.map(async (tutorDoc) => {
+        const tutorAuthUid = await getTutorAuthUid(tutorDoc.id);
+        if (!tutorAuthUid) return;
+
+        await notifyUser({
+          userId: tutorAuthUid,
+          title: "SOS Request! 🆘",
+          body: `A student needs help with ${subject} right now`,
+          data: {
+            type: "sos_request",
+            sosRequestId: requestId,
+            subject: subject,
+          },
+          context: "onSosRequestCreatedNotifyTutors",
+        });
+      }));
+    } catch (error) {
+      logger.error("Failed to notify tutors for SOS", {requestId, error});
+    }
+  },
+);
+
+// ── Feature 5: SOS Request — Expiry ─────────────────────────────────────────
+exports.onSosRequestCreatedExpiry = onDocumentCreated(
+  "sos_requests/{requestId}",
+  async (event) => {
+    const data = event.data?.data() || {};
+    const requestId = event.params.requestId;
+    const studentId = String(data.studentId || "").trim();
+
+    // Schedule expiry after 1 hour
+    setTimeout(async () => {
+      try {
+        const db = admin.firestore();
+        const requestRef = db.collection("sos_requests").doc(requestId);
+        const requestDoc = await requestRef.get();
+
+        if (!requestDoc.exists) return;
+
+        const currentStatus = String(requestDoc.get("status") || "");
+        if (currentStatus !== "searching") {
+          logger.info("SOS request already resolved, skipping expiry", {
+            requestId,
+            currentStatus,
+          });
+          return;
+        }
+
+        // Mark as failed
+        await requestRef.update({
+          status: "failed",
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // Notify student
+        if (studentId) {
+          await notifyUser({
+            userId: studentId,
+            title: "SOS Request Expired",
+            body: "No tutor was available for your request. Try again later.",
+            data: {
+              type: "sos_expired",
+              sosRequestId: requestId,
+            },
+            context: "onSosRequestCreatedExpiry",
+          });
+
+          // Create in-app notification
+          const notifId = `${studentId}_sos_expired_${requestId}`;
+          await db.collection("notifications").doc(notifId).set({
+            userId: studentId,
+            title: "SOS Request Expired",
+            message: "No tutor was available for your request. Try again later.",
+            read: false,
+            type: "sos_expired",
+            sosRequestId: requestId,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        logger.info("SOS request expired", {requestId});
+      } catch (error) {
+        logger.error("Failed to expire SOS request", {requestId, error});
+      }
+    }, 60 * 60 * 1000); // 1 hour
+  },
+);

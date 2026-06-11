@@ -1,6 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
+
 import '../../services/messaging_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/pressable_scale.dart';
@@ -30,25 +36,65 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
   final ScrollController _scrollController = ScrollController();
 
   StreamSubscription<List<QueryDocumentSnapshot>>? _messagesSub;
+  StreamSubscription<ChatRoom?>? _chatRoomSub;
+  
   final List<QueryDocumentSnapshot> _loadedOlderMessages = [];
   List<QueryDocumentSnapshot> _allMessages = [];
 
   bool _isLoadingOlder = false;
   bool _hasMore = true;
+  
+  Timer? _typingTimer;
+  bool _isTyping = false;
+  bool _otherIsTyping = false;
+  bool _isUploading = false;
 
   @override
   void initState() {
     super.initState();
     _setupMessagesStream();
+    _setupChatRoomStream();
     _setupScrollListener();
+    _messageController.addListener(_onTextChanged);
   }
 
   @override
   void dispose() {
     _messagesSub?.cancel();
+    _chatRoomSub?.cancel();
+    _typingTimer?.cancel();
+    _messageController.removeListener(_onTextChanged);
+    if (_isTyping) {
+      MessagingService.instance.updateTypingStatus(widget.chatId, widget.currentUserId, false);
+    }
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _setupChatRoomStream() {
+    _chatRoomSub = MessagingService.instance.getChatRoomStream(widget.chatId).listen((room) {
+      if (!mounted || room == null) return;
+      final typingMap = room.typing;
+      setState(() {
+        _otherIsTyping = typingMap[widget.otherUserId] == true;
+      });
+    });
+  }
+
+  void _onTextChanged() {
+    if (_messageController.text.isNotEmpty) {
+      if (!_isTyping) {
+        _isTyping = true;
+        MessagingService.instance.updateTypingStatus(widget.chatId, widget.currentUserId, true);
+      }
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        _isTyping = false;
+        MessagingService.instance.updateTypingStatus(widget.chatId, widget.currentUserId, false);
+      });
+    }
   }
 
   /// Sets up the stream to fetch the last 25 messages, merging them with paginated history.
@@ -88,6 +134,15 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
     // 2. Overwrite or add real-time stream messages
     for (final doc in streamDocs) {
       messageMap[doc.id] = doc;
+      
+      // Check if message is from the other user and not viewed yet
+      final data = doc.data() as Map<String, dynamic>;
+      final senderId = data['senderId']?.toString() ?? '';
+      final isViewed = data['isViewed'] == true;
+      
+      if (senderId == widget.otherUserId && !isViewed) {
+        MessagingService.instance.markMessageAsViewed(widget.chatId, doc.id);
+      }
     }
 
     // 3. Sort by timestamp ascending
@@ -146,12 +201,68 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
     }
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      _uploadAndSendMessage(File(pickedFile.path), isImage: true);
+    }
+  }
+
+  Future<void> _pickDocument() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'txt'],
+    );
+    if (result != null && result.files.single.path != null) {
+      _uploadAndSendMessage(File(result.files.single.path!), isImage: false, docName: result.files.single.name);
+    }
+  }
+
+  Future<void> _uploadAndSendMessage(File file, {required bool isImage, String? docName}) async {
+    setState(() => _isUploading = true);
+    try {
+      final ext = isImage ? 'jpg' : (docName?.split('.').last ?? 'pdf');
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = FirebaseStorage.instance.ref().child('chats/${widget.chatId}/$fileName');
+      final uploadTask = await ref.putFile(file);
+      final url = await uploadTask.ref.getDownloadURL();
+
+      await MessagingService.instance.sendMessage(
+        chatId: widget.chatId,
+        senderId: widget.currentUserId,
+        text: '',
+        participants: [widget.currentUserId, widget.otherUserId],
+        metadata: {
+          widget.currentUserId: widget.currentUserMetadata,
+          widget.otherUserId: widget.otherUserMetadata,
+        },
+        imageUrl: isImage ? url : null,
+        documentUrl: !isImage ? url : null,
+        documentName: !isImage ? docName : null,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
   /// Sends a text message, clears inputs and triggers updates.
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     _messageController.clear();
+    
+    // Stop typing immediately when sent
+    if (_isTyping) {
+      _isTyping = false;
+      _typingTimer?.cancel();
+      MessagingService.instance.updateTypingStatus(widget.chatId, widget.currentUserId, false);
+    }
 
     try {
       await MessagingService.instance.sendMessage(
@@ -229,11 +340,11 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
                     ),
                   ),
                   Text(
-                    'Active',
+                    _otherIsTyping ? 'Typing...' : 'Active',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: _otherIsTyping ? AppTheme.primary : Colors.green,
                       fontSize: 11,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
@@ -258,7 +369,7 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
                 : ListView.builder(
                     controller: _scrollController,
                     reverse: true, // Newer messages at the bottom
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     itemCount: _allMessages.length + (_isLoadingOlder ? 1 : 0),
                     itemBuilder: (context, index) {
                       // If we are showing loading indicator at the end (top of reversed list)
@@ -276,27 +387,46 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
                       }
 
                       // ListView is reversed: index 0 is at the bottom (newest)
-                      // So index `index` in reversed corresponds to index `_allMessages.length - 1 - index` in ascending ordered messages
-                      final doc = _allMessages[_allMessages.length - 1 - index];
-                      final senderId = doc.get('senderId')?.toString() ?? '';
-                      final text = doc.get('text')?.toString() ?? '';
+                      final docIndex = _allMessages.length - 1 - index;
+                      final doc = _allMessages[docIndex];
                       final timestamp = doc.get('timestamp') as Timestamp?;
+                      
+                      bool showDaySeparator = false;
+                      if (index == _allMessages.length - 1) {
+                         showDaySeparator = true; 
+                      } else {
+                         final previousDoc = _allMessages[docIndex - 1];
+                         final previousTimestamp = previousDoc.get('timestamp') as Timestamp?;
+                         if (timestamp != null && previousTimestamp != null) {
+                            final d1 = timestamp.toDate();
+                            final d2 = previousTimestamp.toDate();
+                            if (d1.year != d2.year || d1.month != d2.month || d1.day != d2.day) {
+                               showDaySeparator = true;
+                            }
+                         }
+                      }
 
-                      final isMine = senderId == widget.currentUserId;
-
-                      return _buildMessageBubble(
-                        text: text,
-                        isMine: isMine,
-                        timestamp: timestamp,
-                        isDark: isDark,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (showDaySeparator && timestamp != null)
+                            _buildDaySeparator(timestamp, isDark),
+                          _buildMessageBubble(doc: doc, isDark: isDark),
+                        ],
                       );
                     },
                   ),
           ),
 
+          if (_isUploading)
+            LinearProgressIndicator(
+              backgroundColor: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
+              color: AppTheme.primary,
+            ),
+
           // Message Input Field
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
             decoration: BoxDecoration(
               color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
               border: Border(
@@ -308,24 +438,39 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
             ),
             child: Row(
               children: [
+                IconButton(
+                  icon: Icon(Icons.image_outlined, color: AppTheme.primary),
+                  onPressed: _pickImage,
+                  tooltip: 'Send Image',
+                ),
+                IconButton(
+                  icon: Icon(Icons.attach_file, color: AppTheme.primary),
+                  onPressed: _pickDocument,
+                  tooltip: 'Send Document',
+                ),
                 Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    style: TextStyle(
-                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black26 : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    decoration: InputDecoration(
-                      hintText: 'Write a message...',
-                      hintStyle: TextStyle(
-                        color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: TextField(
+                      controller: _messageController,
+                      style: TextStyle(
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                       ),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      filled: false,
-                      contentPadding: EdgeInsets.zero,
+                      decoration: InputDecoration(
+                        hintText: 'Write a message...',
+                        hintStyle: TextStyle(
+                          color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
+                      onSubmitted: (_) => _sendMessage(),
                     ),
-                    onSubmitted: (_) => _sendMessage(),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -336,7 +481,7 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
                     height: 44,
                     decoration: BoxDecoration(
                       gradient: AppTheme.buttonGradient,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(22),
                       boxShadow: AppTheme.glow(),
                     ),
                     child: const Icon(
@@ -353,21 +498,123 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
       ),
     );
   }
+  
+  Widget _buildDaySeparator(Timestamp timestamp, bool isDark) {
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    String dayString;
+    
+    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+      dayString = 'Today';
+    } else if (date.year == now.year && date.month == now.month && date.day == now.day - 1) {
+      dayString = 'Yesterday';
+    } else {
+      dayString = DateFormat('MMM d, yyyy').format(date);
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white10 : Colors.black.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            dayString,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildMessageBubble({
-    required String text,
-    required bool isMine,
-    required Timestamp? timestamp,
+    required QueryDocumentSnapshot doc,
     required bool isDark,
   }) {
+    final data = doc.data() as Map<String, dynamic>;
+    final senderId = data['senderId']?.toString() ?? '';
+    final text = data['text']?.toString() ?? '';
+    final timestamp = doc.get('timestamp') as Timestamp?;
+    
+    final isViewed = data['isViewed'] == true;
+    final imageUrl = data['imageUrl']?.toString();
+    final documentUrl = data['documentUrl']?.toString();
+    final documentName = data['documentName']?.toString();
+    
+    final isMine = senderId == widget.currentUserId;
     final timeStr = timestamp != null ? _formatTimestamp(timestamp) : 'Sending...';
+
+    Widget content;
+    final textWidget = text.isEmpty ? const SizedBox() : Text(
+      text,
+      style: TextStyle(
+        color: isMine ? AppTheme.background : (isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
+        fontSize: 14,
+      ),
+    );
+
+    if (imageUrl != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(imageUrl, width: 220, fit: BoxFit.cover),
+          ),
+          if (text.isNotEmpty) const SizedBox(height: 6),
+          textWidget,
+        ],
+      );
+    } else if (documentUrl != null) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isMine ? Colors.white24 : (isDark ? Colors.black12 : Colors.black.withValues(alpha: 0.05)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.insert_drive_file, color: isMine ? Colors.white : AppTheme.primary, size: 28),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    documentName ?? 'Document',
+                    style: TextStyle(
+                      color: isMine ? Colors.white : AppTheme.primary,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (text.isNotEmpty) const SizedBox(height: 6),
+          textWidget,
+        ],
+      );
+    } else {
+      content = textWidget;
+    }
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: const BoxConstraints(maxWidth: 280),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
           gradient: isMine ? AppTheme.buttonGradient : null,
           color: isMine ? null : (isDark ? AppTheme.darkSurface : AppTheme.lightSurface),
@@ -386,25 +633,29 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              text,
-              style: TextStyle(
-                color: isMine ? AppTheme.background : (isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary),
-                fontSize: 14,
-              ),
-            ),
+            content,
             const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.bottomRight,
-              child: Text(
-                timeStr,
-                style: TextStyle(
-                  color: isMine
-                      ? AppTheme.background.withValues(alpha: 0.6)
-                      : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
-                  fontSize: 10,
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  timeStr,
+                  style: TextStyle(
+                    color: isMine
+                        ? AppTheme.background.withValues(alpha: 0.7)
+                        : (isDark ? AppTheme.darkTextSecondary : AppTheme.lightTextSecondary),
+                    fontSize: 10,
+                  ),
                 ),
-              ),
+                if (isMine) const SizedBox(width: 4),
+                if (isMine)
+                  Icon(
+                    isViewed ? Icons.done_all : Icons.check,
+                    size: 14,
+                    color: isViewed ? Colors.blue[200] : AppTheme.background.withValues(alpha: 0.7),
+                  ),
+              ],
             ),
           ],
         ),
@@ -414,9 +665,6 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
 
   String _formatTimestamp(Timestamp timestamp) {
     final dateTime = timestamp.toDate();
-    final hour = dateTime.hour > 12 ? dateTime.hour - 12 : (dateTime.hour == 0 ? 12 : dateTime.hour);
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final ampm = dateTime.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $ampm';
+    return DateFormat.jm().format(dateTime); // E.g., 2:30 PM
   }
 }

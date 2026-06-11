@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 
 import '../../repositories/payment_repository.dart';
 import '../../services/notification_service.dart';
+import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
+import '../booking/review_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -141,6 +143,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   itemBuilder: (context, index) {
                     final doc = docs[index];
                     final data = doc.data();
+                    final type = (data['type'] ?? '').toString();
+                    final sessionId = (data['sessionId'] ?? '').toString();
                     final title = (data['title'] ?? 'Notification').toString();
                     final message = (data['message'] ?? '').toString();
                     final isRead = data['read'] == true;
@@ -149,8 +153,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         ? createdAt.toDate()
                         : null;
 
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                    return GestureDetector(
+                      onTap: () {
+                        // Mark as read when tapped
+                        if (!isRead) {
+                          _paymentRepository.markNotificationRead(doc.id);
+                        }
+                        
+                        if (type == 'review_request' && sessionId.isNotEmpty) {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: ReviewScreen(sessionId: sessionId),
+                            ),
+                          );
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: isRead ? Colors.white : const Color(0xFFF0F4FF),
@@ -213,7 +232,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                         ],
                       ),
-                    );
+                    ));
                   },
                   separatorBuilder: (context, index) => const SizedBox(height: 10),
                   itemCount: docs.length,

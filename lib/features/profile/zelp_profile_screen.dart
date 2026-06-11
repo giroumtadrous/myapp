@@ -13,6 +13,8 @@ import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
 import '../admin/payment_verification_screen.dart';
+import '../admin/payout_requests_screen.dart';
+import '../booking/student_progress_screen.dart';
 
 class ZelpProfileScreen extends StatefulWidget {
   const ZelpProfileScreen({super.key});
@@ -419,6 +421,38 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                           Navigator.of(context).push(
                             AppTransitions.slideFromRight(
                               page: const PaymentVerificationScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _SettingsTile(
+                        icon: Icons.payments_outlined,
+                        title: 'Payout Requests',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const PayoutRequestsScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Student-specific section
+                    if (appUser?.role.toLowerCase() != 'admin') ...[
+                      const Text(
+                        'Learning',
+                        style: TextStyle(color: AppTheme.textPrimary, fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      const SizedBox(height: 10),
+                      _SettingsTile(
+                        icon: Icons.bar_chart_outlined,
+                        title: 'My Progress & History',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const StudentProgressScreen(),
                             ),
                           );
                         },
