@@ -423,7 +423,6 @@ class _ZelpTutorProfileScreenState extends State<ZelpTutorProfileScreen> {
             },
             icon: const Icon(Icons.chat_bubble_outline_rounded),
           ),
-          IconButton(onPressed: () {}, icon: const Icon(Icons.bookmark_border)),
         ],
       ),
       body: Stack(

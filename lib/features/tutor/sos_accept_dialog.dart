@@ -59,8 +59,10 @@ class SosAcceptDialog extends StatelessWidget {
 
     try {
       // Get the SOS request to find studentId
-      final sosDoc =
-          await firestore.collection('sos_requests').doc(sosRequestId).get();
+      final sosDoc = await firestore
+          .collection('sos_requests')
+          .doc(sosRequestId)
+          .get();
       if (!sosDoc.exists) return;
 
       final sosData = sosDoc.data()!;
@@ -86,7 +88,14 @@ class SosAcceptDialog extends StatelessWidget {
       });
 
       // Create a new session
-      final sessionRef = await firestore.collection('sessions').add({
+      // Generate session ID in same format: tutorId_year_month_day_time
+      final now = DateTime.now();
+      final sessionId =
+          '${tutorId}_${now.year}_${now.month.toString().padLeft(2, '0')}_${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+
+      // Use .doc(sessionId).set() instead of .add()
+      final sessionRef = firestore.collection('sessions').doc(sessionId);
+      await sessionRef.set({
         'type': 'sos',
         'tutorId': tutorId,
         'studentId': studentId,
@@ -164,10 +173,7 @@ class SosAcceptDialog extends StatelessWidget {
               ],
             ),
             child: const Center(
-              child: Text(
-                '🆘',
-                style: TextStyle(fontSize: 32),
-              ),
+              child: Text('🆘', style: TextStyle(fontSize: 32)),
             ),
           ),
           const SizedBox(height: 16),
