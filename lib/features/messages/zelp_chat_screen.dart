@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../services/messaging_service.dart';
 import '../../theme/app_theme.dart';
@@ -282,6 +283,60 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
         );
       }
     }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open file.')),
+        );
+      }
+    }
+  }
+
+  void _showMessageOptions(BuildContext context, String messageId, bool isMine, String? fileUrl) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkSurface : AppTheme.lightSurface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (fileUrl != null)
+              ListTile(
+                leading: const Icon(Icons.download, color: AppTheme.primary),
+                title: const Text('Save / Open File'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _openUrl(fileUrl);
+                },
+              ),
+            if (isMine)
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete Message', style: TextStyle(color: Colors.red)),
+                onTap: () async {
+                  Navigator.of(ctx).pop();
+                  try {
+                    await MessagingService.instance.deleteMessage(widget.chatId, messageId);
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to delete: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -564,9 +619,12 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: Image.network(imageUrl, width: 220, fit: BoxFit.cover),
+          GestureDetector(
+            onTap: () => _openUrl(imageUrl),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.network(imageUrl, width: 220, fit: BoxFit.cover),
+            ),
           ),
           if (text.isNotEmpty) const SizedBox(height: 6),
           textWidget,
@@ -576,7 +634,9 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
       content = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
+          GestureDetector(
+            onTap: () => _openUrl(documentUrl),
+            child: Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: isMine ? Colors.white24 : (isDark ? Colors.black12 : Colors.black.withValues(alpha: 0.05)),
@@ -601,6 +661,7 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
               ],
             ),
           ),
+          ),
           if (text.isNotEmpty) const SizedBox(height: 6),
           textWidget,
         ],
@@ -611,10 +672,12 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      child: GestureDetector(
+        onLongPress: () => _showMessageOptions(context, doc.id, isMine, imageUrl ?? documentUrl),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
           gradient: isMine ? AppTheme.buttonGradient : null,
           color: isMine ? null : (isDark ? AppTheme.darkSurface : AppTheme.lightSurface),
@@ -660,7 +723,7 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
           ],
         ),
       ),
-    );
+    ));
   }
 
   String _formatTimestamp(Timestamp timestamp) {

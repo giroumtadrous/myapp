@@ -196,6 +196,16 @@ class MessagingService {
         .update({'isViewed': true});
   }
 
+  /// Delete a message
+  Future<void> deleteMessage(String chatId, String messageId) async {
+    await _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId)
+        .delete();
+  }
+
   /// Stream to fetch the last 25 messages of a chat room.
   Stream<List<QueryDocumentSnapshot>> getMessagesStream(String chatId, {int limit = 25}) {
     return _firestore
