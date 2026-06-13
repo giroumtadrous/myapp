@@ -142,7 +142,7 @@ class _ZelpChatScreenState extends State<ZelpChatScreen> {
       final isViewed = data['isViewed'] == true;
       
       if (senderId == widget.otherUserId && !isViewed) {
-        MessagingService.instance.markMessageAsViewed(widget.chatId, doc.id);
+        MessagingService.instance.markMessageAsViewed(widget.chatId, doc.id, widget.currentUserId);
       }
     }
 

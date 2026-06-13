@@ -13,6 +13,7 @@ class ChatRoom {
   final Timestamp updatedAt;
   final Map<String, ChatParticipantMetadata> metadata;
   final Map<String, bool> typing;
+  final Map<String, int> unreadCounts;
 
   ChatRoom({
     required this.id,
@@ -21,6 +22,7 @@ class ChatRoom {
     required this.updatedAt,
     required this.metadata,
     required this.typing,
+    required this.unreadCounts,
   });
 
   factory ChatRoom.fromFirestore(DocumentSnapshot doc) {
@@ -40,6 +42,9 @@ class ChatRoom {
     final rawTyping = data['typing'] as Map<String, dynamic>? ?? {};
     final typingMap = rawTyping.map((key, value) => MapEntry(key, value == true));
 
+    final rawUnread = data['unreadCounts'] as Map<String, dynamic>? ?? {};
+    final unreadMap = rawUnread.map((key, value) => MapEntry(key, (value as num).toInt()));
+
     return ChatRoom(
       id: doc.id,
       participants: List<String>.from(data['participants'] as List? ?? []),
@@ -47,6 +52,7 @@ class ChatRoom {
       updatedAt: data['updatedAt'] as Timestamp? ?? Timestamp.now(),
       metadata: metadataMap,
       typing: typingMap,
+      unreadCounts: unreadMap,
     );
   }
 
@@ -57,6 +63,7 @@ class ChatRoom {
       'updatedAt': updatedAt,
       'metadata': metadata.map((key, value) => MapEntry(key, value.toMap())),
       'typing': typing,
+      'unreadCounts': unreadCounts,
     };
   }
 }
@@ -186,14 +193,24 @@ class MessagingService {
     }, SetOptions(merge: true));
   }
 
-  /// Mark a message as viewed
-  Future<void> markMessageAsViewed(String chatId, String messageId) async {
-    await _firestore
-        .collection('chats')
-        .doc(chatId)
-        .collection('messages')
-        .doc(messageId)
-        .update({'isViewed': true});
+  /// Mark a message as viewed and reset unread count
+  Future<void> markMessageAsViewed(String chatId, String messageId, String currentUserId) async {
+    final batch = _firestore.batch();
+    
+    batch.update(
+      _firestore.collection('chats').doc(chatId).collection('messages').doc(messageId),
+      {'isViewed': true}
+    );
+    
+    batch.set(
+      _firestore.collection('chats').doc(chatId),
+      {
+        'unreadCounts': {currentUserId: 0}
+      },
+      SetOptions(merge: true)
+    );
+    
+    await batch.commit();
   }
 
   /// Delete a message
@@ -269,11 +286,20 @@ class MessagingService {
       if (documentUrl != null) displayLastMessage = '📄 Document';
     }
 
+    // Increment unread count for all other participants
+    final Map<String, dynamic> unreadUpdates = {};
+    for (final p in participants) {
+      if (p != senderId) {
+        unreadUpdates[p] = FieldValue.increment(1);
+      }
+    }
+
     batch.set(chatDocRef, {
       'participants': participants,
       'lastMessage': displayLastMessage,
       'updatedAt': timestamp,
       'metadata': metadata.map((key, value) => MapEntry(key, value.toMap())),
+      'unreadCounts': unreadUpdates,
     }, SetOptions(merge: true));
 
     await batch.commit();

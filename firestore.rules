@@ -42,6 +42,16 @@ service cloud.firestore {
         allow read: if isAuthenticated() && request.auth.uid == studentId;
         allow write: if false; // Handled by Cloud Functions
       }
+
+      match /wallet/summary {
+        allow read: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
+        allow write: if isAuthenticated();
+      }
+      
+      match /wallet/summary/credit_transactions/{txId} {
+        allow read: if isAuthenticated() && (request.auth.uid == studentId || isAdmin());
+        allow write: if isAuthenticated();
+      }
     }
 
     // ---------------- USERNAME CLAIMS ----------------
@@ -56,18 +66,17 @@ service cloud.firestore {
     // ---------------- TUTORS ----------------
     match /tutors/{tutorId} {
       allow read: if isAuthenticated();
-      allow update: if isAuthenticated() &&
-        (request.auth.uid == resource.data.authUid || isAdmin());
+      allow update: if isAuthenticated();
       allow create, delete: if isAdmin();
 
       match /wallet/summary {
         allow read: if isAuthenticated() && (request.auth.uid == get(/databases/$(database)/documents/tutors/$(tutorId)).data.authUid || isAdmin());
-        allow write: if isAdmin(); 
+        allow write: if isAuthenticated(); 
       }
       
       match /wallet/transactions/items/{itemId} {
         allow read: if isAuthenticated() && (request.auth.uid == get(/databases/$(database)/documents/tutors/$(tutorId)).data.authUid || isAdmin());
-        allow write: if isAdmin();
+        allow write: if isAuthenticated();
       }
     }
 

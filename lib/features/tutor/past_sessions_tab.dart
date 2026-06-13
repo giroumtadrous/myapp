@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -31,12 +32,15 @@ class PastSessionsTab extends StatelessWidget {
         }
 
         final sessions = snapshot.data ?? [];
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         if (sessions.isEmpty) {
           return Center(
             child: Text(
               'No past sessions',
-              style: textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              style: textTheme.bodyMedium?.copyWith(
+                color: isDark ? AppTheme.darkTextSecondary : Colors.grey[600],
+              ),
             ),
           );
         }
@@ -44,9 +48,13 @@ class PastSessionsTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
-            const Text(
+            Text(
               'Past Sessions',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              ),
             ),
             const SizedBox(height: 10),
             ...List.generate(sessions.length, (index) {
@@ -73,6 +81,8 @@ class _PastSessionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: () {
@@ -85,9 +95,9 @@ class _PastSessionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,8 +125,8 @@ class _PastSessionTile extends StatelessWidget {
                 const Spacer(),
                 Text(
                   DateFormat('MMM d, y').format(session.dateTime),
-                  style: const TextStyle(
-                    color: Color(0xFF64748B),
+                  style: TextStyle(
+                    color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B),
                     fontSize: 12,
                   ),
                 ),
@@ -125,20 +135,26 @@ class _PastSessionTile extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               session.subject,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              ),
             ),
             const SizedBox(height: 6),
             Text(
               'Student: ${session.studentName ?? 'Unknown'}',
-              style: const TextStyle(color: Color(0xFF475569)),
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569),
+              ),
             ),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: session.durationMinutes >= 120
-                    ? const Color(0xFFFFF1D6)
-                    : const Color(0xFFEFF6FF),
+                    ? (isDark ? const Color(0xFF78350F).withValues(alpha: 0.2) : const Color(0xFFFFF1D6))
+                    : (isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF6FF)),
                 borderRadius: BorderRadius.circular(99),
               ),
               child: Text(
@@ -147,16 +163,16 @@ class _PastSessionTile extends StatelessWidget {
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: session.durationMinutes >= 120
-                      ? const Color(0xFFB45309)
-                      : const Color(0xFF1D4ED8),
+                      ? (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309))
+                      : (isDark ? AppTheme.primary : const Color(0xFF1D4ED8)),
                 ),
               ),
             ),
             const SizedBox(height: 6),
             Text(
               DateFormat.jm().format(session.dateTime),
-              style: const TextStyle(
-                color: Color(0xFF64748B),
+              style: TextStyle(
+                color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B),
                 fontSize: 12,
               ),
             ),

@@ -104,6 +104,33 @@ class _SosBookingScreenState extends State<SosBookingScreen>
         'expiresAt': Timestamp.fromDate(now.add(const Duration(hours: 1))),
       });
 
+      // Find all tutors who teach this subject
+      final tutorsSnapshot = await _firestore
+          .collection('tutors')
+          .where('subjects', arrayContains: _selectedSubject)
+          .get();
+
+      // Write a notification document for each matching tutor (excluding oneself if registered)
+      final batch = _firestore.batch();
+      for (final doc in tutorsSnapshot.docs) {
+        final tutorData = doc.data();
+        final authUid = tutorData['authUid']?.toString();
+        if (authUid != null && authUid.isNotEmpty && authUid != uid) {
+          final notifRef = _firestore.collection('notifications').doc();
+          batch.set(notifRef, {
+            'userId': authUid,
+            'type': 'sos_request',
+            'sosRequestId': docRef.id,
+            'subject': _selectedSubject,
+            'title': '🆘 SOS Tutoring Request!',
+            'message': 'A student needs help with $_selectedSubject right now.',
+            'read': false,
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      await batch.commit();
+
       if (!mounted) return;
       setState(() {
         _sosRequestId = docRef.id;

@@ -106,6 +106,10 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         return;
       }
 
+      final appUser = await _userService.getUser(user.uid);
+      final existingPhoto = appUser?.photoUrl ?? '';
+      final photoToSave = existingPhoto.isNotEmpty ? existingPhoto : user.photoURL;
+
       await _authService.saveUserProfileWithUsernameClaim(
         uid: user.uid,
         username: normalizedUsername,
@@ -115,7 +119,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
         role: 'student',
         authProvider: provider,
         displayName: user.displayName,
-        photoUrl: user.photoURL,
+        photoUrl: photoToSave,
       );
       await _userService.syncFcmToken(user.uid);
 

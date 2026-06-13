@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../constants/availability_constants.dart';
 import '../../repositories/tutors_repository.dart';
+import '../../theme/app_theme.dart';
 
 class TutorAvailabilityScreen extends StatefulWidget {
   final String tutorId;
@@ -104,9 +105,14 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
-      appBar: AppBar(title: const Text('Manage Availability')),
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      appBar: AppBar(
+        title: const Text('Manage Availability'),
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _errorMessage != null
@@ -120,19 +126,19 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                              border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
                             ),
-                            child: const Row(
+                            child: Row(
                               children: [
-                                Icon(Icons.schedule, color: Color(0xFF4051B5)),
-                                SizedBox(width: 8),
+                                const Icon(Icons.schedule, color: AppTheme.primary),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     'Choose available hours for each day. These slots are shown to students when booking.',
                                     style: TextStyle(
-                                      color: Color(0xFF475569),
+                                      color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569),
                                       fontSize: 13,
                                     ),
                                   ),
@@ -147,14 +153,14 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
                       ),
                     ),
                     Container(
-                      color: Colors.white,
+                      color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                       child: SizedBox(
                         width: double.infinity,
                         child: FilledButton.icon(
                           onPressed: _isSaving ? null : _saveAvailability,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF4051B5),
+                            backgroundColor: AppTheme.primary,
                             minimumSize: const Size.fromHeight(52),
                           ),
                           icon: _isSaving
@@ -200,14 +206,15 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
   Widget _buildDaySection(String day) {
     final hours = _availability[day] ?? [];
     final dayDisplayName = dayDisplayNames[day] ?? day;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,19 +223,23 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
             children: [
               Text(
                 dayDisplayName,
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                ),
               ),
               const Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF2FF),
+                  color: isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF2FF),
                   borderRadius: BorderRadius.circular(99),
                 ),
                 child: Text(
                   '${hours.length} Open',
                   style: const TextStyle(
-                    color: Color(0xFF4051B5),
+                    color: AppTheme.primary,
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                   ),
@@ -251,19 +262,26 @@ class _TutorAvailabilityScreenState extends State<TutorAvailabilityScreen> {
   }
 
   Widget _buildHourChip(String day, String hour, bool isSelected) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return InkWell(
       onTap: () => _toggleHour(day, hour),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF4051B5) : const Color(0xFFF1F5F9),
+          color: isSelected
+              ? AppTheme.primary
+              : (isDark ? AppTheme.darkBackground : const Color(0xFFF1F5F9)),
           borderRadius: BorderRadius.circular(20),
+          border: isSelected ? null : Border.fromBorderSide(AppTheme.border(isDark: isDark)),
         ),
         child: Text(
           hour,
           style: TextStyle(
-            color: isSelected ? Colors.white : const Color(0xFF475569),
+            color: isSelected
+                ? Colors.white
+                : (isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569)),
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             fontSize: 12,
           ),

@@ -133,7 +133,7 @@ class AuthService {
 
       debugPrint('[AuthService] Apple authorization failed: ${e.code} ${e.message}');
       debugPrint(st.toString());
-      throw StateError('Apple sign-in failed: ${e.message ?? e.code.name}');
+      throw StateError('Apple sign-in failed: ${e.message}');
     } catch (e, st) {
       final text = e.toString().toLowerCase();
       if (text.contains('canceled') || text.contains('cancelled')) {
@@ -269,15 +269,15 @@ class AuthService {
       final data = doc.data() ?? <String, dynamic>{};
       // Require both username and institution
       final username = (data['username'] ?? '').toString().trim();
-      final institution =
-          (data['universityOrHighSchool'] ?? data['institution'] ?? '')
-              .toString()
-              .trim();
+      String institution = (data['universityOrHighSchool'] ?? '').toString().trim();
+      if (institution.isEmpty) {
+        institution = (data['institution'] ?? '').toString().trim();
+      }
       return username.isNotEmpty && institution.isNotEmpty;
     } catch (e, st) {
       debugPrint('[AuthService] Failed to check profile completeness: $e');
       debugPrint(st.toString());
-      return false;
+      rethrow;
     }
   }
 

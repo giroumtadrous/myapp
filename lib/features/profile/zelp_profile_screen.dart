@@ -14,7 +14,9 @@ import '../../utils/app_transitions.dart';
 import '../../widgets/pressable_scale.dart';
 import '../admin/payment_verification_screen.dart';
 import '../admin/payout_requests_screen.dart';
+import '../admin/dispute_resolution_screen.dart';
 import '../booking/student_progress_screen.dart';
+import 'student_wallet_screen.dart';
 
 class ZelpProfileScreen extends StatefulWidget {
   const ZelpProfileScreen({super.key});
@@ -436,6 +438,17 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                           );
                         },
                       ),
+                      _SettingsTile(
+                        icon: Icons.gavel_outlined,
+                        title: 'Dispute Resolution Center',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const DisputeResolutionScreen(),
+                            ),
+                          );
+                        },
+                      ),
                       const SizedBox(height: 16),
                     ],
 
@@ -453,6 +466,17 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                           Navigator.of(context).push(
                             AppTransitions.slideFromRight(
                               page: const StudentProgressScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _SettingsTile(
+                        icon: Icons.account_balance_wallet_outlined,
+                        title: 'My Credit Wallet',
+                        onTap: () {
+                          Navigator.of(context).push(
+                            AppTransitions.slideFromRight(
+                              page: const StudentWalletScreen(),
                             ),
                           );
                         },

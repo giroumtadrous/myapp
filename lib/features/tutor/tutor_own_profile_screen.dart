@@ -194,9 +194,14 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppTheme.darkBackground,
-      appBar: AppBar(title: const Text('Tutor Profile')),
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      appBar: AppBar(
+        title: const Text('Tutor Profile'),
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
+      ),
       body: StreamBuilder<Tutor?>(
         stream: _repo.getTutorById(widget.tutorId),
         builder: (context, snapshot) {
@@ -304,7 +309,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                           Text(
                             tutor.email,
                             style: const TextStyle(
-                              color: Color(0xFF4051B5),
+                              color: AppTheme.primary,
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.4,
@@ -365,7 +370,7 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                             : tutor.university,
                         style: textTheme.bodyMedium?.copyWith(
                           color: tutor.university.trim().isEmpty
-                              ? Colors.grey[500]
+                              ? (isDark ? AppTheme.darkTextSecondary : Colors.grey[500])
                               : null,
                         ),
                       ),
@@ -456,7 +461,9 @@ class _TutorOwnProfileScreenState extends State<TutorOwnProfileScreen> {
                               ? 'No bio yet. Tap "Edit" to add one.'
                               : tutor.bio,
                           style: textTheme.bodyMedium?.copyWith(
-                            color: tutor.bio.isEmpty ? Colors.grey[500] : null,
+                            color: tutor.bio.isEmpty
+                                ? (isDark ? AppTheme.darkTextSecondary : Colors.grey[500])
+                                : null,
                             height: 1.6,
                           ),
                         ),

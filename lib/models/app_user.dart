@@ -37,12 +37,12 @@ class AppUser {
           : DateTime.now(),
       role: (data['role'] ?? 'student').toString(),
       institution: (data['institution'] ?? data['school'] ?? '').toString(),
-      universityOrHighSchool:
-          (data['universityOrHighSchool'] ??
-                  data['institution'] ??
-                  data['school'] ??
-                  '')
-               .toString(),
+      universityOrHighSchool: () {
+        String inst = (data['universityOrHighSchool'] ?? '').toString().trim();
+        if (inst.isEmpty) inst = (data['institution'] ?? '').toString().trim();
+        if (inst.isEmpty) inst = (data['school'] ?? '').toString().trim();
+        return inst;
+      }(),
       photoUrl: (data['photoUrl'] ?? data['profileImageUrl'] ?? data['photoURL'] ?? '').toString(),
     );
   }

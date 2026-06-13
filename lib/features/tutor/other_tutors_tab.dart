@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/tutor_model.dart';
 import '../../repositories/tutors_repository.dart';
+import '../../theme/app_theme.dart';
 
 class OtherTutorsTab extends StatelessWidget {
   final String currentTutorId;
@@ -27,11 +28,15 @@ class OtherTutorsTab extends StatelessWidget {
         var tutors = snapshot.data ?? [];
         tutors = tutors.where((t) => t.id != currentTutorId).toList();
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         if (tutors.isEmpty) {
           return Center(
             child: Text(
               'No other tutors available',
-              style: textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              style: textTheme.bodyMedium?.copyWith(
+                color: isDark ? AppTheme.darkTextSecondary : Colors.grey[600],
+              ),
             ),
           );
         }
@@ -39,9 +44,13 @@ class OtherTutorsTab extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
           children: [
-            const Text(
+            Text(
               'Other Tutors',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+              ),
             ),
             const SizedBox(height: 10),
             ...List.generate(tutors.length, (index) {
@@ -66,13 +75,14 @@ class _TutorNetworkCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,10 +93,10 @@ class _TutorNetworkCard extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEFF2FF),
+                  color: isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF2FF),
                   borderRadius: BorderRadius.circular(99),
                 ),
-                child: const Icon(Icons.person, color: Color(0xFF4051B5)),
+                child: const Icon(Icons.person, color: AppTheme.primary),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -97,13 +107,14 @@ class _TutorNetworkCard extends StatelessWidget {
                       tutor.name,
                       style: textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
+                        color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                       ),
                     ),
                     Text(
                       tutor.email,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF64748B),
+                        color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -112,7 +123,7 @@ class _TutorNetworkCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3CD),
+                  color: isDark ? const Color(0xFF78350F).withValues(alpha: 0.2) : const Color(0xFFFFF3CD),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -121,9 +132,10 @@ class _TutorNetworkCard extends StatelessWidget {
                     const SizedBox(width: 4),
                     Text(
                       tutor.rating.toStringAsFixed(1),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 12,
+                        color: isDark ? const Color(0xFFFBBF24) : Colors.black,
                       ),
                     ),
                   ],
@@ -136,7 +148,10 @@ class _TutorNetworkCard extends StatelessWidget {
             tutor.bio.isEmpty ? 'No bio available yet.' : tutor.bio,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Color(0xFF475569), height: 1.4),
+            style: TextStyle(
+              color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569),
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 10),
           Wrap(
@@ -151,13 +166,13 @@ class _TutorNetworkCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF2FF),
+                      color: isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF2FF),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
                       subject,
                       style: const TextStyle(
-                        color: Color(0xFF4051B5),
+                        color: AppTheme.primary,
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                       ),
@@ -170,7 +185,7 @@ class _TutorNetworkCard extends StatelessWidget {
           Text(
             '\$${tutor.hourlyRate.toStringAsFixed(2)}/hr',
             style: const TextStyle(
-              color: Color(0xFF4051B5),
+              color: AppTheme.primary,
               fontWeight: FontWeight.w700,
             ),
           ),

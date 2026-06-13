@@ -9,6 +9,7 @@ import '../../models/tutor_model.dart';
 import '../../repositories/reviews_repository.dart';
 import '../../repositories/session_repository.dart';
 import '../../repositories/tutors_repository.dart';
+import '../../repositories/credits_repository.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -20,8 +21,13 @@ import '../messages/zelp_chat_screen.dart';
 
 class SessionDetailsScreen extends StatefulWidget {
   final String sessionId;
+  final bool showCancelDialog;
 
-  const SessionDetailsScreen({super.key, required this.sessionId});
+  const SessionDetailsScreen({
+    super.key,
+    required this.sessionId,
+    this.showCancelDialog = false,
+  });
 
   @override
   State<SessionDetailsScreen> createState() => _SessionDetailsScreenState();
@@ -32,25 +38,95 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
   final ReviewsRepository _reviewsRepository = ReviewsRepository();
   final TutorsRepository _tutorsRepository = TutorsRepository();
   bool _isCanceling = false;
+  bool _hasAutoShownCancelDialog = false;
   bool _submittingReview = false;
 
 
-  Future<void> _cancelSession(SessionModel session) async {
+  Future<void> _cancelSessionByStudent(SessionModel session) async {
+    final price = session.type == 'group' ? session.pricePerStudent : session.amount;
+    final now = DateTime.now();
+    final timeDiff = session.dateTime.difference(now);
+
+    double refundPercentage = 0.0;
+    if (timeDiff.inHours >= 12) {
+      refundPercentage = 1.0;
+    } else if (timeDiff.inHours >= 3) {
+      refundPercentage = 0.5;
+    } else {
+      refundPercentage = 0.0;
+    }
+
+    final refundAmount = price * refundPercentage;
+    final tutorEarnings = price * (1.0 - refundPercentage);
+
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Cancel session'),
-        content: const Text(
-          'Are you sure you want to cancel this session? This updates the status to cancelled.',
+        title: const Text('Cancel Session'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Are you sure you want to cancel this session?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('• Time remaining: ${timeDiff.inHours} hours'),
+                      Text('• Refund tier: ${(refundPercentage * 100).toStringAsFixed(0)}% credits'),
+                      Text('• Credit Refund: EGP ${refundAmount.toStringAsFixed(0)}'),
+                      Text('• Tutor earns: EGP ${tutorEarnings.toStringAsFixed(0)}'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: reasonController,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for cancellation',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g. Unforeseen circumstances',
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Please enter a reason';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('No'),
+            child: const Text('Go Back'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes, cancel'),
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.of(context).pop(true);
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Confirm Cancel'),
           ),
         ],
       ),
@@ -60,20 +136,247 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
 
     setState(() => _isCanceling = true);
     try {
-      await _sessionRepository.cancelSession(session.id);
+      await CreditsRepository.instance.cancelSessionByStudent(
+        sessionId: session.id,
+        studentId: session.studentId,
+        reason: reasonController.text.trim(),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Session cancelled successfully.')),
+        SnackBar(content: Text('Session cancelled. Refunded EGP ${refundAmount.toStringAsFixed(0)} credits.')),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to cancel session: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to cancel: $e')),
+      );
     } finally {
-      if (mounted) {
-        setState(() => _isCanceling = false);
-      }
+      if (mounted) setState(() => _isCanceling = false);
+    }
+  }
+
+  Future<void> _cancelSessionByTutor(SessionModel session) async {
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel Session (Tutor)'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Are you sure you want to cancel this session?',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'WARNING:',
+                        style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text('• Student gets 100% credit refund.'),
+                      Text('• You will receive 1 strike on your profile.'),
+                      Text('• At 3 strikes, your account will be suspended.'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: reasonController,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for cancellation',
+                    border: OutlineInputBorder(),
+                    hintText: 'e.g. Schedule conflict',
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Please enter a reason';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Go Back'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.of(context).pop(true);
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Confirm Cancel & Accept Strike'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isCanceling = true);
+    try {
+      await CreditsRepository.instance.cancelSessionByTutor(
+        sessionId: session.id,
+        tutorId: session.tutorId,
+        reason: reasonController.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session cancelled. Strike has been issued.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to cancel: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isCanceling = false);
+    }
+  }
+
+  Future<void> _reportNoShow(SessionModel session) async {
+    final price = session.type == 'group' ? session.pricePerStudent : session.amount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report Tutor No-Show'),
+        content: Text(
+          'Are you sure you want to report that the tutor did not show up?\n\n'
+          'You will get a 100% refund of EGP ${price.toStringAsFixed(0)} credits, and the tutor will receive 1 strike.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Yes, Report No-Show'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isCanceling = true);
+    try {
+      await CreditsRepository.instance.reportNoShow(
+        sessionId: session.id,
+        studentId: session.studentId,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted. 100% refund has been issued.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to report: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isCanceling = false);
+    }
+  }
+
+  Future<void> _raiseDispute(SessionModel session) async {
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Raise a Dispute'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Submit a dispute for this session if you encountered issues. Admin will review the case.',
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: reasonController,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for dispute',
+                    border: OutlineInputBorder(),
+                    hintText: 'Describe what went wrong in detail...',
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return 'Please enter a reason';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.of(context).pop(true);
+              }
+            },
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.primary),
+            child: const Text('Submit Dispute'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _isCanceling = true);
+    try {
+      await CreditsRepository.instance.raiseDispute(
+        sessionId: session.id,
+        reason: reasonController.text.trim(),
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dispute raised successfully. Admin has been notified.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to raise dispute: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isCanceling = false);
     }
   }
 
@@ -92,13 +395,6 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
         const SnackBar(content: Text('Could not open document link.')),
       );
     }
-  }
-
-  bool _canCancel(SessionModel session) {
-    final status = session.status.toLowerCase();
-    return status != 'cancelled' &&
-        status != 'completed' &&
-        status != 'rejected';
   }
 
   bool _canReview(SessionModel session, User? user) {
@@ -392,10 +688,38 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
           }
 
           final session = details.session;
+          if (widget.showCancelDialog && !_hasAutoShownCancelDialog) {
+            _hasAutoShownCancelDialog = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _cancelSessionByStudent(session);
+            });
+          }
           final currentUser = FirebaseAuth.instance.currentUser;
           final cancelled = _isCancelled(session);
-          final canJoin = _sessionRepository.canJoinSession(session);
-          final canCancel = _canCancel(session);
+          final isTutor = currentUser?.uid != session.studentId;
+          final isStudent = !isTutor;
+
+          final canStudentCancel = isStudent &&
+              (session.status == 'confirmed' || session.status == 'approved') &&
+              session.dateTime.difference(DateTime.now()) >= const Duration(hours: 1);
+
+          final terminalStatuses = ['cancelled', 'completed', 'rejected', 'no show', 'payment_rejected'];
+          final canTutorCancel = isTutor && !terminalStatuses.contains(session.status.toLowerCase());
+
+          final allowedNoShowTime = session.dateTime.add(const Duration(minutes: 15));
+          final canReportNoShow = isStudent &&
+              (session.status == 'confirmed' || session.status == 'approved') &&
+              DateTime.now().isAfter(allowedNoShowTime) &&
+              session.noShowReported != true;
+
+          final completionTime = session.dateTime.add(Duration(minutes: session.durationMinutes));
+          final now = DateTime.now();
+          final within24HoursOfCompletion = now.isAfter(completionTime) && now.isBefore(completionTime.add(const Duration(hours: 24)));
+          final canRaiseDispute = isStudent &&
+              session.status == 'completed' &&
+              within24HoursOfCompletion &&
+              session.disputeStatus == null;
+
           final canReview = _canReview(session, currentUser);
           return Column(
             children: [
@@ -805,21 +1129,50 @@ class _SessionDetailsScreenState extends State<SessionDetailsScreen> {
                             ),
                           ],
                           const SizedBox(height: 8),
-                          if (canCancel)
+                          if (canStudentCancel) ...[
                             SizedBox(
                               width: double.infinity,
                               child: ZelpSecondaryButton(
-                                label: _isCanceling
-                                    ? 'Cancelling...'
-                                    : 'Cancel Session',
-                                icon: _isCanceling
-                                    ? null
-                                    : Icons.cancel_outlined,
-                                onTap: _isCanceling
-                                    ? null
-                                    : () => _cancelSession(session),
+                                label: _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                                icon: _isCanceling ? null : Icons.cancel_outlined,
+                                onTap: _isCanceling ? null : () => _cancelSessionByStudent(session),
                               ),
                             ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (canTutorCancel) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ZelpSecondaryButton(
+                                label: _isCanceling ? 'Cancelling...' : 'Cancel Session',
+                                icon: _isCanceling ? null : Icons.cancel_outlined,
+                                onTap: _isCanceling ? null : () => _cancelSessionByTutor(session),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (canReportNoShow) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ZelpPrimaryButton(
+                                label: 'Report Tutor No-Show',
+                                icon: Icons.report_problem_outlined,
+                                onTap: _isCanceling ? null : () => _reportNoShow(session),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (canRaiseDispute) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: ZelpPrimaryButton(
+                                label: 'Raise Dispute',
+                                icon: Icons.gavel_outlined,
+                                onTap: _isCanceling ? null : () => _raiseDispute(session),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
                         ],
                       ),
               ),

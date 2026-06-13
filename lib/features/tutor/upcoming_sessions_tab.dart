@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../../models/session_model.dart';
 import '../../repositories/session_repository.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../utils/session_status_utils.dart';
 import '../../widgets/app_loading_indicator.dart';
@@ -39,11 +40,15 @@ class UpcomingSessionsTab extends StatelessWidget {
           );
         }
 
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+
         if (sessions.isEmpty) {
           return Center(
             child: Text(
               'No upcoming sessions',
-              style: textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+              style: textTheme.bodyMedium?.copyWith(
+                color: isDark ? AppTheme.darkTextSecondary : Colors.grey[600],
+              ),
             ),
           );
         }
@@ -54,9 +59,13 @@ class UpcomingSessionsTab extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Upcoming Sessions',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                  ),
                 ),
                 TextButton(onPressed: () {}, child: const Text('View All')),
               ],
@@ -186,6 +195,7 @@ class _UpcomingSessionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final date = DateFormat('MMM').format(session.dateTime).toUpperCase();
     final day = DateFormat('d').format(session.dateTime);
     final subtitle =
@@ -203,9 +213,9 @@ class _UpcomingSessionTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+          border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
         ),
         child: Row(
           children: [
@@ -213,7 +223,7 @@ class _UpcomingSessionTile extends StatelessWidget {
               width: 50,
               height: 50,
               decoration: BoxDecoration(
-                color: const Color(0xFFEFF2FF),
+                color: isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF2FF),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Column(
@@ -221,18 +231,19 @@ class _UpcomingSessionTile extends StatelessWidget {
                 children: [
                   Text(
                     date,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF4051B5),
+                      color: isDark ? AppTheme.primary : const Color(0xFF4051B5),
                     ),
                   ),
                   Text(
                     day,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
                       height: 1,
+                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
                     ),
                   ),
                 ],
@@ -245,14 +256,17 @@ class _UpcomingSessionTile extends StatelessWidget {
                 children: [
                   Text(
                     session.subject,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Color(0xFF64748B),
+                      color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B),
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -265,8 +279,8 @@ class _UpcomingSessionTile extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: session.durationMinutes >= 120
-                              ? const Color(0xFFFFF1D6)
-                              : const Color(0xFFEFF6FF),
+                              ? (isDark ? const Color(0xFF78350F).withValues(alpha: 0.2) : const Color(0xFFFFF1D6))
+                              : (isDark ? AppTheme.primary.withValues(alpha: 0.12) : const Color(0xFFEFF6FF)),
                           borderRadius: BorderRadius.circular(99),
                         ),
                         child: Text(
@@ -275,8 +289,8 @@ class _UpcomingSessionTile extends StatelessWidget {
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                             color: session.durationMinutes >= 120
-                                ? const Color(0xFFB45309)
-                                : const Color(0xFF1D4ED8),
+                                ? (isDark ? const Color(0xFFFBBF24) : const Color(0xFFB45309))
+                                : (isDark ? AppTheme.primary : const Color(0xFF1D4ED8)),
                           ),
                         ),
                       ),
@@ -286,16 +300,16 @@ class _UpcomingSessionTile extends StatelessWidget {
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        const Icon(Icons.link, size: 14, color: Color(0xFF1D4ED8)),
+                        Icon(Icons.link, size: 14, color: isDark ? AppTheme.primary : const Color(0xFF1D4ED8)),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             session.meetLink!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Color(0xFF1D4ED8),
+                              color: isDark ? AppTheme.primary : const Color(0xFF1D4ED8),
                               decoration: TextDecoration.underline,
                             ),
                           ),
@@ -331,7 +345,7 @@ class _UpcomingSessionTile extends StatelessWidget {
                 icon: Icon(session.meetLink != null && session.meetLink!.isNotEmpty
                     ? Icons.edit_note_rounded
                     : Icons.add_link_rounded),
-                color: const Color(0xFF4051B5),
+                color: AppTheme.primary,
                 tooltip: session.meetLink != null && session.meetLink!.isNotEmpty
                     ? 'Edit meeting link'
                     : 'Add meeting link',

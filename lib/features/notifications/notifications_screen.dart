@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../repositories/payment_repository.dart';
 import '../../services/notification_service.dart';
+import '../../theme/app_theme.dart';
 import '../../utils/app_transitions.dart';
 import '../../widgets/app_loading_indicator.dart';
 import '../booking/review_screen.dart';
@@ -75,6 +76,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     if (user == null) {
       return const Scaffold(
@@ -83,8 +85,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     return Scaffold(
+      backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
       appBar: AppBar(
         title: const Text('Notifications'),
+        backgroundColor: isDark ? AppTheme.darkBackground : AppTheme.lightBackground,
       ),
       body: Column(
         children: [
@@ -92,18 +96,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isDark ? AppTheme.darkSurface : AppTheme.lightSurface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFE2E8F0)),
+              border: Border.fromBorderSide(AppTheme.border(isDark: isDark)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.volume_off_outlined, color: Color(0xFF475569)),
+                Icon(
+                  Icons.volume_off_outlined,
+                  color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569),
+                ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Mute future alerts',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppTheme.darkTextPrimary : AppTheme.lightTextPrimary,
+                    ),
                   ),
                 ),
                 if (_loadingPreference)
@@ -172,12 +182,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: isRead ? Colors.white : const Color(0xFFF0F4FF),
+                        color: isRead
+                            ? (isDark ? AppTheme.darkSurface : AppTheme.lightSurface)
+                            : (isDark ? AppTheme.primary.withValues(alpha: 0.1) : const Color(0xFFF0F4FF)),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isRead
-                              ? const Color(0xFFE2E8F0)
-                              : const Color(0xFFCAD5FF),
+                        border: Border.fromBorderSide(
+                          isRead
+                              ? AppTheme.border(isDark: isDark)
+                              : BorderSide(
+                                  color: isDark
+                                      ? AppTheme.primary.withValues(alpha: 0.35)
+                                      : const Color(0xFFCAD5FF),
+                                  width: 1.2,
+                                ),
                         ),
                       ),
                       child: Row(
@@ -188,8 +205,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ? Icons.notifications_none_rounded
                                 : Icons.notifications_active_outlined,
                             color: isRead
-                                ? const Color(0xFF64748B)
-                                : const Color(0xFF4051B5),
+                                ? (isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B))
+                                : AppTheme.primary,
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -201,24 +218,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     color: isRead
-                                        ? const Color(0xFF334155)
-                                        : const Color(0xFF1E3A8A),
+                                        ? (isDark ? AppTheme.darkTextPrimary : const Color(0xFF334155))
+                                        : (isDark ? AppTheme.primary : const Color(0xFF1E3A8A)),
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   message,
-                                  style: const TextStyle(
-                                    color: Color(0xFF475569),
+                                  style: TextStyle(
+                                    color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF475569),
                                   ),
                                 ),
                                 if (createdAtDate != null) ...[
                                   const SizedBox(height: 6),
                                   Text(
                                     DateFormat.yMMMd().add_jm().format(createdAtDate),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 12,
-                                      color: Color(0xFF64748B),
+                                      color: isDark ? AppTheme.darkTextSecondary : const Color(0xFF64748B),
                                     ),
                                   ),
                                 ],

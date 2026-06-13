@@ -33,13 +33,12 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
     'All',
     'Pending',
     'Approved',
-    'Payment Rejected',
+    'Past Sessions',
   ];
   int _filterIndex = 0;
 
   String _sessionFilterLabel(SessionModel session) {
     final raw = session.status.toLowerCase();
-    if (raw == 'payment_rejected') return 'Payment Rejected';
     if (raw == 'pending' ||
         raw == 'pending_payment_verification' ||
         raw.contains('pending')) {
@@ -57,32 +56,14 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
     BuildContext context,
     SessionModel session,
   ) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Cancel Session'),
-        content: const Text('Are you sure you want to cancel this session?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Yes, Cancel'),
-          ),
-        ],
+    Navigator.of(context).push(
+      AppTransitions.slideFromRight(
+        page: SessionDetailsScreen(
+          sessionId: session.id,
+          showCancelDialog: true,
+        ),
       ),
     );
-    if (confirm == true) {
-      await _sessionRepository.cancelSession(session.id);
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Session cancelled.')));
-      }
-    }
   }
 
   Future<void> _rebookSession(
@@ -138,20 +119,6 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
               ).push(AppTransitions.fade(page: const SessionsCalendarScreen()));
             },
             icon: const Icon(Icons.calendar_month),
-          ),
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                AppTransitions.fade(
-                  page: PastSessionsScreen(
-                    sessionRepository: _sessionRepository,
-                    tutorsRepository: _tutorsRepository,
-                  ),
-                ),
-              );
-            },
-            icon: const Icon(Icons.history),
-            tooltip: 'Past sessions',
           ),
         ],
       ),
@@ -244,10 +211,9 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
               ),
             ),
 
-            // Sessions List Feed
             Expanded(
               child: StreamBuilder<List<SessionModel>>(
-                stream: _sessionRepository.upcomingStudentSessions(
+                stream: _sessionRepository.allStudentSessions(
                   currentUser.uid,
                 ),
                 builder: (context, snapshot) {
@@ -258,15 +224,23 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
                   }
 
                   final sessions = snapshot.data ?? [];
-                  final filteredSessions = _filterIndex == 0
-                      ? sessions
-                      : sessions
-                            .where(
-                              (s) =>
-                                  _sessionFilterLabel(s) ==
-                                  _filters[_filterIndex],
-                            )
-                            .toList();
+                  final filteredSessions = sessions.where((s) {
+                    final isCompleted = s.status.toLowerCase() == 'completed';
+                    final tabName = _filters[_filterIndex];
+
+                    if (tabName == 'Past Sessions') {
+                      return isCompleted;
+                    } else {
+                      // Do not show completed sessions under other tabs
+                      if (isCompleted) return false;
+
+                      if (tabName == 'All') {
+                        return true;
+                      } else {
+                        return _sessionFilterLabel(s) == tabName;
+                      }
+                    }
+                  }).toList();
 
                   if (filteredSessions.isEmpty) {
                     return Center(
@@ -295,9 +269,6 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
                       ).format(session.dateTime).toUpperCase();
                       final timeStr = DateFormat.jm().format(session.dateTime);
                       final durationStr = '${session.durationMinutes} min';
-                      final canJoin = _sessionRepository.canJoinSession(
-                        session,
-                      );
                       final isPast = session.dateTime.isBefore(DateTime.now());
 
                       // Determine state buttons
@@ -463,240 +434,6 @@ class _ZelpSessionsScreenState extends State<ZelpSessionsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class PastSessionsScreen extends StatefulWidget {
-  final SessionRepository sessionRepository;
-  final TutorsRepository tutorsRepository;
-
-  const PastSessionsScreen({
-    super.key,
-    required this.sessionRepository,
-    required this.tutorsRepository,
-  });
-
-  @override
-  State<PastSessionsScreen> createState() => _PastSessionsScreenState();
-}
-
-class _PastSessionsScreenState extends State<PastSessionsScreen> {
-  static const List<String> _tabs = <String>[
-    'Completed',
-    'Cancelled',
-    'Not Refunded',
-  ];
-
-  int _selectedIndex = 0;
-  bool _cleanupScheduled = false;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _cleanupRefundedSessions(),
-    );
-  }
-
-  Future<void> _cleanupRefundedSessions() async {
-    if (_cleanupScheduled) return;
-    _cleanupScheduled = true;
-
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    try {
-      await widget.sessionRepository.cleanupRefundedCancelledSessions(user.uid);
-    } catch (_) {
-      // Keep the page usable even if cleanup is blocked by permissions.
-    }
-  }
-
-  bool _isRefundDone(SessionModel session) {
-    final status = (session.refundStatus ?? '').trim().toLowerCase();
-    return session.refundDone == true ||
-        session.refundedAt != null ||
-        session.refundProcessedAt != null ||
-        status == 'refunded' ||
-        status == 'done';
-  }
-
-  List<SessionModel> _sessionsForBucket(List<SessionModel> sessions) {
-    final filtered = sessions.where((session) {
-      final status = session.status.toLowerCase();
-      final refundDone = _isRefundDone(session);
-
-      switch (_selectedIndex) {
-        case 0:
-          return status == 'completed';
-        case 1:
-          return status == 'cancelled' && refundDone;
-        case 2:
-          return status == 'cancelled' && !refundDone;
-        default:
-          return true;
-      }
-    }).toList();
-
-    filtered.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-    return filtered;
-  }
-
-  Future<void> _rebookSession(
-    BuildContext context,
-    SessionModel session,
-  ) async {
-    try {
-      final tutor = await widget.tutorsRepository
-          .getTutorById(session.tutorId)
-          .first;
-      if (!context.mounted) return;
-
-      if (tutor == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Tutor profile is unavailable right now.'),
-          ),
-        );
-        return;
-      }
-
-      Navigator.of(context).push(
-        AppTransitions.slideFromRight(
-          page: ZelpTutorProfileScreen(tutor: tutor),
-        ),
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not open tutor profile: $e')),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser == null) {
-      return Scaffold(
-        backgroundColor: AppTheme.background,
-        appBar: AppBar(title: const Text('Past Sessions')),
-        body: const Center(
-          child: Text('Please sign in to view past sessions.'),
-        ),
-      );
-    }
-
-    return Scaffold(
-      backgroundColor: AppTheme.background,
-      appBar: AppBar(title: const Text('Past Sessions')),
-      body: StreamBuilder<List<SessionModel>>(
-        stream: widget.sessionRepository.pastSessions(currentUser.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const AppLoadingIndicator(
-              message: 'Loading past sessions...',
-            );
-          }
-
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('Failed to load past sessions: ${snapshot.error}'),
-              ),
-            );
-          }
-
-          final sessions = _sessionsForBucket(
-            snapshot.data ?? const <SessionModel>[],
-          );
-
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                child: ZelpCategoryTabs(
-                  items: _tabs,
-                  selectedIndex: _selectedIndex,
-                  onChanged: (value) => setState(() => _selectedIndex = value),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  _selectedIndex == 1
-                      ? 'Refunded cancelled sessions are removed automatically.'
-                      : _selectedIndex == 2
-                      ? 'These sessions were cancelled and still need a refund.'
-                      : 'Completed sessions are kept here for review and rebooking.',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.textSecondary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: sessions.isEmpty
-                    ? Center(
-                        child: Text(
-                          _selectedIndex == 0
-                              ? 'No completed sessions yet.'
-                              : _selectedIndex == 1
-                              ? 'No cancelled sessions with refunds found.'
-                              : 'No cancelled sessions waiting for refund found.',
-                          style: const TextStyle(color: AppTheme.textSecondary),
-                        ),
-                      )
-                    : ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        itemCount: sessions.length,
-                        separatorBuilder: (context, index) =>
-                            const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final session = sessions[index];
-                          final dayStr = session.dateTime.day.toString();
-                          final monthStr = DateFormat(
-                            'MMM',
-                          ).format(session.dateTime).toUpperCase();
-                          final timeStr = DateFormat.jm().format(
-                            session.dateTime,
-                          );
-                          final durationStr = '${session.durationMinutes} min';
-
-                          return ZelpSessionCard(
-                            data: ZelpSessionCardData(
-                              tutorName: session.tutorName ?? session.tutorId,
-                              subject: session.subject,
-                              time: timeStr,
-                              duration: durationStr,
-                              status: session.status,
-                              day: dayStr,
-                              month: monthStr,
-                              joinLabel: 'View Details',
-                              secondaryLabel: 'Rebook',
-                              enabled: true,
-                            ),
-                            onPrimaryTap: () {
-                              Navigator.of(context).push(
-                                AppTransitions.slideFromRight(
-                                  page: SessionDetailsScreen(
-                                    sessionId: session.id,
-                                  ),
-                                ),
-                              );
-                            },
-                            onSecondaryTap: () =>
-                                _rebookSession(context, session),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          );
-        },
       ),
     );
   }

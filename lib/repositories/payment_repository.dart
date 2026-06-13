@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/payment_model.dart';
+import 'credits_repository.dart';
 
 class PaymentRepository {
   PaymentRepository({FirebaseFirestore? firestore})
@@ -365,6 +366,206 @@ class PaymentRepository {
     }
   }
 
+  Future<void> submitWalletPayment({
+    required String sessionId,
+    required String studentId,
+    required String tutorId,
+    required String subject,
+    required DateTime sessionDateTime,
+    required String date,
+    required String time,
+    required String timeDisplay,
+    required double amount,
+    required int durationMinutes,
+    required int slotCount,
+    required List<String> reservedSlots,
+  }) async {
+    try {
+      if (reservedSlots.isEmpty) {
+        throw Exception('At least one reserved slot is required.');
+      }
+
+      final paymentRef = _firestore.collection('payments').doc();
+      final sessionRef = _firestore.collection('sessions').doc(sessionId);
+
+      final overlapping = await _firestore
+          .collection('sessions')
+          .where('tutorId', isEqualTo: tutorId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
+      final studentOverlapping = await _firestore
+          .collection('sessions')
+          .where('studentId', isEqualTo: studentId)
+          .where('date', isEqualTo: date)
+          .where('status', whereIn: blockingStatuses)
+          .get();
+
+      for (final doc in overlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception('This time slot is no longer available.');
+        }
+      }
+
+      for (final doc in studentOverlapping.docs) {
+        final data = doc.data();
+        final existingReservedRaw = data['reservedSlots'];
+        final existingReserved = existingReservedRaw is List
+            ? existingReservedRaw.map((e) => e.toString()).toSet()
+            : <String>{(data['time'] ?? '').toString()};
+
+        if (existingReserved.intersection(reservedSlots.toSet()).isNotEmpty) {
+          throw Exception(
+            'You already have another session at this time. Please choose a different slot.',
+          );
+        }
+      }
+
+      await _firestore
+          .runTransaction((tx) async {
+            try {
+              final studentSummaryRef = _firestore
+                  .collection('students')
+                  .doc(studentId)
+                  .collection('wallet')
+                  .doc('summary');
+
+              final studentSummarySnap = await tx.get(studentSummaryRef);
+              final double currentCredits = (studentSummarySnap.data()?['credits'] as num?)?.toDouble() ?? 0;
+
+              if (currentCredits < amount) {
+                throw Exception('Insufficient wallet balance. You have EGP ${currentCredits.toStringAsFixed(0)} credits.');
+              }
+
+              final existingSession = await tx.get(sessionRef);
+              if (existingSession.exists) {
+                final data = existingSession.data() ?? <String, dynamic>{};
+                final existingStatus = (data['status'] ?? '').toString();
+
+                if (blockingStatuses.contains(existingStatus)) {
+                  throw Exception('This time slot is no longer available.');
+                }
+              }
+              final existingData =
+                  existingSession.data() ?? <String, dynamic>{};
+              final existingRoomName = (existingData['roomName'] ?? '')
+                  .toString();
+              final roomName = existingRoomName.isNotEmpty
+                  ? existingRoomName
+                  : _generateRandomRoomName();
+              final existingMeetLink = (existingData['meetLink'] ?? '')
+                  .toString();
+              final meetLink = (existingMeetLink.isNotEmpty &&
+                      !existingMeetLink.contains('meet.ffmuc.net') &&
+                      !existingMeetLink.contains('jitsi'))
+                  ? existingMeetLink
+                  : null;
+
+              // Deduct wallet credits
+              final double currentEarned = (studentSummarySnap.data()?['totalCreditsEarned'] as num?)?.toDouble() ?? 0;
+              final double currentUsed = (studentSummarySnap.data()?['totalCreditsUsed'] as num?)?.toDouble() ?? 0;
+
+              tx.set(studentSummaryRef, {
+                'credits': currentCredits - amount,
+                'totalCreditsEarned': currentEarned,
+                'totalCreditsUsed': currentUsed + amount,
+                'updatedAt': FieldValue.serverTimestamp(),
+              }, SetOptions(merge: true));
+
+              final txRef = studentSummaryRef.collection('credit_transactions').doc();
+              final now = DateTime.now();
+              final expiresAt = now.add(const Duration(days: 180));
+              tx.set(txRef, {
+                'amount': amount,
+                'type': 'usage',
+                'reason': 'Booked Session (Subject: $subject)',
+                'sessionId': sessionId,
+                'createdAt': FieldValue.serverTimestamp(),
+                'expiresAt': Timestamp.fromDate(expiresAt),
+              });
+
+              tx.set(paymentRef, {
+                'studentId': studentId,
+                'tutorId': tutorId,
+                'sessionId': sessionId,
+                'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
+                'transferTime': Timestamp.fromDate(DateTime.now()),
+                'screenshotUrl': 'wallet_credits',
+                'status': 'approved',
+                'note': 'Paid using Wallet Credits',
+                'createdAt': FieldValue.serverTimestamp(),
+                'roomName': roomName,
+              });
+
+              final sessionData = <String, dynamic>{
+                'tutorId': tutorId,
+                'studentId': studentId,
+                'subject': subject,
+                'date': date,
+                'time': time,
+                'timeDisplay': timeDisplay,
+                'dateTime': Timestamp.fromDate(sessionDateTime),
+                'hourlyRate': amount,
+                'amount': amount,
+                'durationMinutes': durationMinutes,
+                'slotCount': slotCount,
+                'reservedSlots': reservedSlots,
+                'paymentId': paymentRef.id,
+                'meetLink': meetLink,
+                'status': 'confirmed',
+                'roomName': roomName,
+              };
+
+              if (existingSession.exists) {
+                tx.update(sessionRef, {
+                  ...sessionData,
+                  'updatedAt': FieldValue.serverTimestamp(),
+                });
+              } else {
+                tx.set(sessionRef, {
+                  ...sessionData,
+                  'createdAt': FieldValue.serverTimestamp(),
+                });
+              }
+
+              tx.set(_firestore.collection('notifications').doc(), {
+                'userId': studentId,
+                'title': 'Payment Success',
+                'message': 'Your wallet payment of EGP ${amount.toStringAsFixed(0)} credits has been approved. Your session is confirmed!',
+                'read': false,
+                'createdAt': FieldValue.serverTimestamp(),
+              });
+            } catch (e) {
+              rethrow;
+            }
+          })
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw TimeoutException(
+                'Booking transaction timed out. Please try again.',
+              );
+            },
+          );
+    } on FirebaseException catch (e) {
+      throw Exception(e.message ?? 'Firebase error while processing payment.');
+    } on TimeoutException catch (e) {
+      throw Exception(e.message ?? 'The request timed out. Please try again.');
+    } catch (_) {
+      rethrow;
+    }
+  }
+
   Stream<List<PaymentModel>> pendingPayments() {
     return _firestore
         .collection('payments')
@@ -383,47 +584,82 @@ class PaymentRepository {
     final paymentRef = _firestore.collection('payments').doc(paymentId);
     final sessionRef = _firestore.collection('sessions').doc(sessionId);
 
-    final paymentStatus = approved ? 'approved' : 'rejected';
-    final sessionStatus = approved ? 'confirmed' : 'payment_rejected';
-
     await _firestore.runTransaction((tx) async {
       final sessionSnap = await tx.get(sessionRef);
+      if (!sessionSnap.exists) {
+        throw Exception('Session not found');
+      }
       final sessionData = sessionSnap.data() ?? <String, dynamic>{};
-      final rawRoomName = (sessionData['roomName'] ?? '').toString().trim();
-      final needsRandomRoom =
-          rawRoomName.isEmpty ||
-          rawRoomName == sessionId ||
-          rawRoomName.startsWith('session_');
-      final roomName = needsRandomRoom
-          ? _generateRandomRoomName()
-          : rawRoomName;
+      final amount = (sessionData['amount'] as num?)?.toDouble() ?? 0.0;
 
-      tx.update(paymentRef, {
-        'status': paymentStatus,
-        'verifiedAt': FieldValue.serverTimestamp(),
-        'roomName': roomName,
-      });
+      if (approved) {
+        final rawRoomName = (sessionData['roomName'] ?? '').toString().trim();
+        final needsRandomRoom =
+            rawRoomName.isEmpty ||
+            rawRoomName == sessionId ||
+            rawRoomName.startsWith('session_');
+        final roomName = needsRandomRoom
+            ? _generateRandomRoomName()
+            : rawRoomName;
 
-      tx.update(sessionRef, {
-        'status': sessionStatus,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'roomName': roomName,
-      });
+        tx.update(paymentRef, {
+          'status': 'approved',
+          'verifiedAt': FieldValue.serverTimestamp(),
+          'roomName': roomName,
+        });
 
-      final notificationId = 'payment_${paymentId}_$paymentStatus';
-      tx.set(_firestore.collection('notifications').doc(notificationId), {
-        'userId': studentId,
-        'type': 'payment_status',
-        'paymentId': paymentId,
-        'sessionId': sessionId,
-        'status': paymentStatus,
-        'title': approved ? 'Payment Approved' : 'Payment Rejected',
-        'message': approved
-            ? 'Your payment was approved and your session is now confirmed.'
-            : 'Your payment was rejected. Please check your payment details and try again.',
-        'read': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        tx.update(sessionRef, {
+          'status': 'confirmed',
+          'updatedAt': FieldValue.serverTimestamp(),
+          'roomName': roomName,
+        });
+
+        final notificationId = 'payment_${paymentId}_approved';
+        tx.set(_firestore.collection('notifications').doc(notificationId), {
+          'userId': studentId,
+          'type': 'payment_status',
+          'paymentId': paymentId,
+          'sessionId': sessionId,
+          'status': 'approved',
+          'title': 'Payment Approved',
+          'message': 'Your payment was approved and your session is now confirmed.',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        tx.update(paymentRef, {
+          'status': 'rejected',
+          'verifiedAt': FieldValue.serverTimestamp(),
+        });
+
+        // Delete the session document
+        tx.delete(sessionRef);
+
+        // Student receives 100% credit refund automatically
+        if (amount > 0) {
+          await CreditsRepository.instance.adjustCredits(
+            studentId: studentId,
+            amount: amount,
+            type: 'refund',
+            reason: 'Payment Rejected by Admin',
+            sessionId: sessionId,
+            activeTx: tx,
+          );
+        }
+
+        final notificationId = 'payment_${paymentId}_rejected';
+        tx.set(_firestore.collection('notifications').doc(notificationId), {
+          'userId': studentId,
+          'type': 'payment_status',
+          'paymentId': paymentId,
+          'sessionId': sessionId,
+          'status': 'rejected',
+          'title': 'Payment Rejected',
+          'message': 'Your payment screenshot was rejected. The session has been deleted, and a 100% refund of EGP ${amount.toStringAsFixed(0)} credits has been automatically issued to your wallet.',
+          'read': false,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
     });
   }
 

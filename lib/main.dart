@@ -7,6 +7,7 @@ import 'features/auth/auth_wrapper.dart';
 import 'services/messaging_service.dart';
 import 'services/notification_service.dart';
 import 'services/theme_service.dart';
+import 'services/cache_service.dart';
 import 'theme/app_theme.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -17,6 +18,9 @@ Future<void> main() async {
   
   // Enable persistent offline caching for Firestore
   MessagingService.instance.setupOfflineCaching();
+
+  // Initialize Hive Smart Caching System
+  await CacheService.instance.initialize();
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await NotificationService.instance.initialize();

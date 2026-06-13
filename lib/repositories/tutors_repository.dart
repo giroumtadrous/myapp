@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/tutor_model.dart';
+import '../services/cache_service.dart';
 
 /// Repository for tutors data. Provides real-time streams from Firestore.
 /// Uses a single shared Firestore listener to avoid duplicate calls.
@@ -130,15 +131,12 @@ class TutorsRepository {
   Stream<List<Tutor>> getTutors({
     String? categoryFilter,
     String? subjectFilter,
-  }) {
-    Query<Map<String, dynamic>> query = _firestore.collection(_collection);
-
-    // Firestore allows at most one array-contains clause in a query.
-    final hasCategoryFilter =
-        categoryFilter != null && categoryFilter.isNotEmpty;
+  }) async* {
+    final hasCategoryFilter = categoryFilter != null && categoryFilter.isNotEmpty;
     final hasSubjectFilter = subjectFilter != null && subjectFilter.isNotEmpty;
     var applyCategoryLocally = false;
 
+    Query<Map<String, dynamic>> query = _firestore.collection(_collection);
     if (hasSubjectFilter) {
       query = query.where('subjects', arrayContains: subjectFilter);
       applyCategoryLocally = hasCategoryFilter;
@@ -146,20 +144,52 @@ class TutorsRepository {
       query = query.where('main', arrayContains: categoryFilter);
     }
 
-    return query.snapshots().asyncMap((snapshot) async {
+    // 1. Hive Cache
+    final cacheData = CacheService.instance.getTutors();
+    bool shouldFetch = true;
+
+    if (cacheData != null) {
+      final cachedAt = cacheData['cachedAt'] as DateTime;
+      final tutorsJson = cacheData['data'] as List<Map<String, dynamic>>;
+      var tutors = tutorsJson.map((map) => Tutor.fromMap(map['id'], map)).toList();
+
+      if (hasSubjectFilter) {
+        tutors = tutors.where((t) => t.subjects.contains(subjectFilter)).toList();
+      } else if (hasCategoryFilter) {
+        tutors = tutors.where((t) => t.main.contains(categoryFilter)).toList();
+      }
+      
+      tutors.sort((a, b) => b.rating.compareTo(a.rating));
+      yield tutors;
+
+      if (DateTime.now().difference(cachedAt).inMinutes < 30) {
+        shouldFetch = false;
+      }
+    }
+
+    if (!shouldFetch) return;
+
+    // 2. Firestore stream
+    await for (final snapshot in query.snapshots()) {
       var tutors = await _withDynamicStats(snapshot.docs);
 
       if (applyCategoryLocally) {
-        tutors = tutors
-            .where((tutor) => tutor.main.contains(categoryFilter))
-            .toList();
+        tutors = tutors.where((tutor) => tutor.main.contains(categoryFilter)).toList();
       }
 
-      // Sort client-side to avoid requiring a composite index for
-      // array-contains + orderBy combinations.
       tutors.sort((a, b) => b.rating.compareTo(a.rating));
-      return tutors;
-    });
+      
+      if (!hasSubjectFilter && !hasCategoryFilter) {
+        final jsonList = tutors.map((t) {
+           final m = t.toMap();
+           m['id'] = t.id;
+           return m;
+        }).toList();
+        CacheService.instance.saveTutors(jsonList);
+      }
+
+      yield tutors;
+    }
   }
 
   Stream<List<Tutor>> getTutorsFromInstitution(String institution) {
@@ -336,6 +366,7 @@ class TutorsRepository {
   Future<void> updateTutorBio(String tutorId, String bio) async {
     try {
       await _firestore.collection(_collection).doc(tutorId).update({'bio': bio});
+      await CacheService.instance.clearTutors();
     } catch (e) {
       throw Exception('Failed to update bio: $e');
     }
@@ -347,6 +378,7 @@ class TutorsRepository {
         'photoUrl': photoUrl,
         'profileImageUrl': photoUrl,
       });
+      await CacheService.instance.clearTutors();
     } catch (e) {
       throw Exception('Failed to update profile photo: $e');
     }

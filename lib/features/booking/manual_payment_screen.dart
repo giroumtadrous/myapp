@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
+import '../../repositories/credits_repository.dart';
 import '../../repositories/payment_repository.dart';
 import '../../services/payment_screenshot_storage_service.dart';
 import '../../utils/app_transitions.dart';
@@ -277,6 +279,57 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     }
   }
 
+  Future<void> _submitWalletPayment() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please sign in again.')),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+
+    try {
+      await _paymentRepository.submitWalletPayment(
+        sessionId: widget.sessionId,
+        studentId: user.uid,
+        tutorId: widget.tutorId,
+        subject: widget.subject,
+        sessionDateTime: widget.sessionDateTime,
+        date: widget.date,
+        time: widget.time,
+        timeDisplay: widget.timeDisplay,
+        amount: widget.amount,
+        durationMinutes: widget.durationMinutes,
+        slotCount: widget.slotCount,
+        reservedSlots: widget.reservedSlots,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        AppTransitions.fade(page: const MainNavigationScreen()),
+        (route) => false,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Wallet payment approved! Session confirmed instantly.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Wallet payment failed: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
+    }
+  }
+
   Future<void> _pickScreenshot(ImageSource source) async {
     if (_submitting) return;
 
@@ -476,13 +529,22 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
                       icon: Icons.credit_card_rounded,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: _buildMethodTab(
                       id: 'instapay',
                       title: 'InstaPay',
                       subtitle: 'Manual Transfer',
                       icon: Icons.account_balance_wallet_rounded,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _buildMethodTab(
+                      id: 'wallet',
+                      title: 'Wallet',
+                      subtitle: 'Credits',
+                      icon: Icons.account_balance_wallet_outlined,
                     ),
                   ),
                 ],
@@ -492,9 +554,11 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
               // Conditional Forms Display
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: _selectedMethod == 'card' 
-                  ? _buildCreditCardForm(textTheme)
-                  : _buildInstaPayForm(textTheme),
+                child: _selectedMethod == 'card'
+                    ? _buildCreditCardForm(textTheme)
+                    : _selectedMethod == 'instapay'
+                        ? _buildInstaPayForm(textTheme)
+                        : _buildWalletForm(textTheme),
               ),
             ],
           ),
@@ -510,7 +574,11 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
     required IconData icon,
   }) {
     final isSelected = _selectedMethod == id;
-    final themeColor = id == 'card' ? const Color(0xFF4051B5) : Colors.teal;
+    final themeColor = id == 'card'
+        ? const Color(0xFF4051B5)
+        : id == 'wallet'
+            ? const Color(0xFF0F766E)
+            : Colors.teal;
 
     return PressableScale(
       child: GestureDetector(
@@ -1049,6 +1117,182 @@ class _ManualPaymentScreenState extends State<ManualPaymentScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWalletForm(TextTheme textTheme) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const Center(child: Text('Please log in.'));
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      key: const ValueKey('wallet_form'),
+      stream: CreditsRepository.instance.watchStudentWalletSummary(user.uid),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        final data = snapshot.data?.data() ?? <String, dynamic>{};
+        final double walletCredits = (data['credits'] as num?)?.toDouble() ?? 0.0;
+        final bool hasEnoughCredits = walletCredits >= widget.amount;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Beautiful Wallet Balance Card
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF0F766E), Color(0xFF134E4A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF0F766E).withValues(alpha: 0.25),
+                    blurRadius: 16,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Zelp Wallet Credits',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Icon(
+                        Icons.account_balance_wallet_rounded,
+                        color: Colors.tealAccent[100],
+                        size: 24,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'AVAILABLE BALANCE',
+                    style: TextStyle(
+                      color: Colors.white60,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'EGP ${walletCredits.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          hasEnoughCredits ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                          color: hasEnoughCredits ? Colors.tealAccent[100] : Colors.amberAccent[100],
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            hasEnoughCredits
+                                ? 'You have sufficient credits to book this session.'
+                                : 'Insufficient balance. You need EGP ${(widget.amount - walletCredits).toStringAsFixed(2)} more credits.',
+                            style: TextStyle(
+                              color: hasEnoughCredits ? Colors.white : Colors.amberAccent[100],
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            if (hasEnoughCredits) ...[
+              Text(
+                'By confirming, the total amount of EGP ${widget.amount.toStringAsFixed(0)} will be deducted from your credit wallet instantly.',
+                style: const TextStyle(
+                  color: Color(0xFF64748B),
+                  fontSize: 12,
+                  height: 1.5,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: PressableScale(
+                  child: ElevatedButton.icon(
+                    onPressed: _submitting ? null : _submitWalletPayment,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 2,
+                    ),
+                    icon: _submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                          )
+                        : const Icon(Icons.check_circle_outline_rounded, size: 18),
+                    label: Text(
+                      _submitting ? 'Processing...' : 'Confirm with Wallet Credits',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ),
+            ] else ...[
+              const Text(
+                'Please select another payment method or contact support to top up your wallet credits.',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 12,
+                  height: 1.5,
+                  fontWeight: FontWeight.w600,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

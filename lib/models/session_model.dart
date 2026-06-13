@@ -39,6 +39,20 @@ class SessionModel {
   final double pricePerStudent;
   final List<String> studentIds;
 
+  // New fields
+  final String? cancelledBy; // "student" | "tutor" | null
+  final DateTime? cancelledAt;
+  final String? cancellationReason;
+  final double? refundAmount;
+  final String? disputeReason;
+  final DateTime? disputedAt;
+  final String? disputeStatus; // "open" | "resolved" | null
+  final String? disputeResolution; // "full_credits" | "partial_credits" | "no_refund" | null
+  final DateTime? disputeResolvedAt;
+  final double? disputeRefundAmount;
+  final bool? noShowReported;
+  final DateTime? noShowReportedAt;
+
   const SessionModel({
     required this.id,
     required this.tutorId,
@@ -67,6 +81,18 @@ class SessionModel {
     this.currentStudents = 1,
     this.pricePerStudent = 0,
     this.studentIds = const [],
+    this.cancelledBy,
+    this.cancelledAt,
+    this.cancellationReason,
+    this.refundAmount,
+    this.disputeReason,
+    this.disputedAt,
+    this.disputeStatus,
+    this.disputeResolution,
+    this.disputeResolvedAt,
+    this.disputeRefundAmount,
+    this.noShowReported,
+    this.noShowReportedAt,
   });
 
   factory SessionModel.fromFirestore(DocumentSnapshot doc) {
@@ -105,7 +131,7 @@ class SessionModel {
       amount: parsedAmount,
       slotCount: _toSlotCount(data),
       reservedSlots: _toReservedSlots(data),
-      refundStatus: (data['refundStatus'] ?? data['refund_status'])?.toString(),
+      refundStatus: (data['refundStatus'] ?? data['refund_status'] ?? data['refundStatus'])?.toString(),
       refundDone: _toNullableBool(data['refundDone'] ?? data['refund_done']),
       refundProcessedAt: _toDateTime(
         data['refundProcessedAt'] ?? data['refund_processed_at'],
@@ -117,6 +143,18 @@ class SessionModel {
       pricePerStudent: (data['pricePerStudent'] as num?)?.toDouble() ??
           (parsedMaxStudents > 0 ? parsedAmount / parsedMaxStudents : parsedAmount),
       studentIds: parsedStudentIds,
+      cancelledBy: data['cancelledBy']?.toString(),
+      cancelledAt: _toDateTime(data['cancelledAt']),
+      cancellationReason: data['cancellationReason']?.toString(),
+      refundAmount: (data['refundAmount'] as num?)?.toDouble(),
+      disputeReason: data['disputeReason']?.toString(),
+      disputedAt: _toDateTime(data['disputedAt']),
+      disputeStatus: data['disputeStatus']?.toString(),
+      disputeResolution: data['disputeResolution']?.toString(),
+      disputeResolvedAt: _toDateTime(data['disputeResolvedAt']),
+      disputeRefundAmount: (data['disputeRefundAmount'] as num?)?.toDouble(),
+      noShowReported: _toNullableBool(data['noShowReported']),
+      noShowReportedAt: _toDateTime(data['noShowReportedAt']),
     );
   }
 
@@ -217,6 +255,18 @@ class SessionModel {
     int? currentStudents,
     double? pricePerStudent,
     List<String>? studentIds,
+    String? cancelledBy,
+    DateTime? cancelledAt,
+    String? cancellationReason,
+    double? refundAmount,
+    String? disputeReason,
+    DateTime? disputedAt,
+    String? disputeStatus,
+    String? disputeResolution,
+    DateTime? disputeResolvedAt,
+    double? disputeRefundAmount,
+    bool? noShowReported,
+    DateTime? noShowReportedAt,
   }) {
     return SessionModel(
       id: id,
@@ -246,6 +296,18 @@ class SessionModel {
       currentStudents: currentStudents ?? this.currentStudents,
       pricePerStudent: pricePerStudent ?? this.pricePerStudent,
       studentIds: studentIds ?? this.studentIds,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+      refundAmount: refundAmount ?? this.refundAmount,
+      disputeReason: disputeReason ?? this.disputeReason,
+      disputedAt: disputedAt ?? this.disputedAt,
+      disputeStatus: disputeStatus ?? this.disputeStatus,
+      disputeResolution: disputeResolution ?? this.disputeResolution,
+      disputeResolvedAt: disputeResolvedAt ?? this.disputeResolvedAt,
+      disputeRefundAmount: disputeRefundAmount ?? this.disputeRefundAmount,
+      noShowReported: noShowReported ?? this.noShowReported,
+      noShowReportedAt: noShowReportedAt ?? this.noShowReportedAt,
     );
   }
 

@@ -5,7 +5,7 @@ import '../config/fcm_web_config.dart';
 
 Future<String?> fetchFcmDeviceToken(FirebaseMessaging messaging) async {
   if (kIsWeb) {
-    final vapidKey = FcmWebConfig.vapidKey?.trim();
+    final vapidKey = FcmWebConfig.vapidKey.trim();
     if (vapidKey == null || vapidKey.isEmpty) {
       debugPrint(
         '[FCM] Web push needs a VAPID key. Add it in lib/config/fcm_web_config.dart '

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+
 import '../models/session_model.dart';
 
 class SessionParticipant {
@@ -33,28 +33,6 @@ class SessionRepository {
   static const String _roomAlphabet =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_';
   final Random _random = Random.secure();
-  static const bool _enableSessionDebugLogs = true;
-
-  bool get _canLogSessions => kDebugMode && _enableSessionDebugLogs;
-
-  void _logFetchedDocs(String scope, QuerySnapshot snap) {
-    if (!_canLogSessions) return;
-
-    debugPrint('[Sessions][$scope] fetched ${snap.docs.length} docs');
-    for (final doc in snap.docs) {
-      final data = doc.data() as Map<String, dynamic>;
-      debugPrint(
-        '[Sessions][$scope] doc=${doc.id} '
-        'status=${data['status']} '
-        'duration=${data['durationMinutes'] ?? data['duration']} '
-        'slotCount=${data['slotCount']} '
-        'reservedSlots=${data['reservedSlots']} '
-        'dateTime=${data['dateTime']} '
-        'date=${data['date']} '
-        'time=${data['time']}',
-      );
-    }
-  }
 
   String _generateRandomRoomName({int length = 18}) {
     final chars = List<String>.generate(
@@ -121,7 +99,6 @@ class SessionRepository {
         )
         .snapshots()
         .asyncMap((snap) async {
-          _logFetchedDocs('student-upcoming', snap);
           final now = DateTime.now();
 
           final mapped = snap.docs
@@ -134,14 +111,6 @@ class SessionRepository {
                 session.studentId.trim() == normalizedStudentId;
             final isUpcoming = session.dateTime.isAfter(now);
 
-            if (_canLogSessions) {
-              debugPrint(
-                '[Sessions][student-upcoming] parsed id=${session.id} '
-                'duration=${session.durationMinutes} slotCount=${session.slotCount} '
-                'dateTime=${session.dateTime.toIso8601String()} '
-                'studentMatch=$isForStudent upcoming=$isUpcoming',
-              );
-            }
 
             if (isForStudent && isUpcoming) {
               filtered.add(session);
@@ -157,13 +126,20 @@ class SessionRepository {
   Stream<List<SessionModel>> pastSessions(String studentId) {
     final normalizedStudentId = studentId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('student-past', snap);
       final now = DateTime.now();
       final filtered =
           snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.studentId.trim() == normalizedStudentId)
-              .where((s) => s.dateTime.isBefore(now))
+              .where((s) {
+                final status = s.status.toLowerCase();
+                final isTerminal = status == 'cancelled' ||
+                    status == 'payment_rejected' ||
+                    status == 'rejected' ||
+                    status == 'completed' ||
+                    status == 'no_show';
+                return s.dateTime.isBefore(now) || isTerminal;
+              })
               .toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
       return _enrichWithTutorNames(filtered);
@@ -173,11 +149,14 @@ class SessionRepository {
   Stream<List<SessionModel>> allStudentSessions(String studentId) {
     final normalizedStudentId = studentId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('student-all', snap);
       final filtered =
           snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.studentId.trim() == normalizedStudentId)
+              .where((s) {
+                final status = s.status.toLowerCase();
+                return status != 'cancelled' && status != 'payment_rejected';
+              })
               .toList()
             ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
       return _enrichWithTutorNames(filtered);
@@ -187,13 +166,16 @@ class SessionRepository {
   Stream<List<SessionModel>> upcomingStudentSessions(String studentId) {
     final normalizedStudentId = studentId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('student-upcoming', snap);
       final now = DateTime.now();
       final filtered =
           snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.studentId.trim() == normalizedStudentId)
               .where((s) => !s.dateTime.isBefore(now))
+              .where((s) {
+                final status = s.status.toLowerCase();
+                return status != 'cancelled' && status != 'payment_rejected';
+              })
               .toList()
             ..sort((a, b) => a.dateTime.compareTo(b.dateTime));
       return _enrichWithTutorNames(filtered);
@@ -306,7 +288,6 @@ class SessionRepository {
   Stream<List<SessionModel>> tutorUpcomingSessions(String tutorId) {
     final normalizedTutorId = tutorId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('tutor-upcoming', snap);
       final now = DateTime.now();
       final mapped = snap.docs
           .map((d) => SessionModel.fromFirestore(d))
@@ -316,17 +297,10 @@ class SessionRepository {
       for (final session in mapped) {
         final isForTutor = session.tutorId.trim() == normalizedTutorId;
         final isUpcoming = session.dateTime.isAfter(now);
+        final status = session.status.toLowerCase();
+        final isActive = status != 'cancelled' && status != 'payment_rejected';
 
-        if (_canLogSessions) {
-          debugPrint(
-            '[Sessions][tutor-upcoming] parsed id=${session.id} '
-            'duration=${session.durationMinutes} slotCount=${session.slotCount} '
-            'dateTime=${session.dateTime.toIso8601String()} '
-            'tutorMatch=$isForTutor upcoming=$isUpcoming status=${session.status}',
-          );
-        }
-
-        if (isForTutor && isUpcoming) {
+        if (isForTutor && isUpcoming && isActive) {
           filtered.add(session);
         }
       }
@@ -340,13 +314,20 @@ class SessionRepository {
   Stream<List<SessionModel>> tutorPastSessions(String tutorId) {
     final normalizedTutorId = tutorId.trim();
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('tutor-past', snap);
       final now = DateTime.now();
       final filtered =
           snap.docs
               .map((d) => SessionModel.fromFirestore(d))
               .where((s) => s.tutorId.trim() == normalizedTutorId)
-              .where((s) => s.dateTime.isBefore(now))
+              .where((s) {
+                final status = s.status.toLowerCase();
+                final isTerminal = status == 'cancelled' ||
+                    status == 'payment_rejected' ||
+                    status == 'rejected' ||
+                    status == 'completed' ||
+                    status == 'no_show';
+                return s.dateTime.isBefore(now) || isTerminal;
+              })
               .toList()
             ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
       return _enrichWithStudentNames(filtered);
@@ -362,7 +343,6 @@ class SessionRepository {
     final dayEnd = dayStart.add(const Duration(days: 1));
 
     return _firestore.collection('sessions').snapshots().asyncMap((snap) async {
-      _logFetchedDocs('tutor-day', snap);
       final filtered =
           snap.docs
               .map((d) => SessionModel.fromFirestore(d))
