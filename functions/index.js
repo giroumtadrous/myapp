@@ -1,8 +1,124 @@
 const {onDocumentCreated, onDocumentUpdated} = require("firebase-functions/v2/firestore");
 const {logger} = require("firebase-functions");
 const admin = require("firebase-admin");
+const path = require("path");
 
 admin.initializeApp();
+
+function createMeetLink(sessionId) {
+  const roomName = `zelp-${sessionId}-${Date.now()}`;
+  return `https://meet.jit.si/${roomName}`;
+}
+
+exports.onSessionApprovedGenerateMeetLink = onDocumentUpdated(
+  "sessions/{sessionId}",
+  async (event) => {
+    const before = event.data.before.data();
+    const after = event.data.after.data();
+
+    if (before.status === after.status) return;
+    if (after.status !== "approved") return;
+    if (after.meetLink) return;
+
+    const sessionId = event.params.sessionId;
+
+    try {
+      const meetLink = createMeetLink(sessionId);
+
+      // Save meet link to session
+      await admin.firestore().collection("sessions").doc(sessionId).update({
+        meetLink,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // Get student and tutor emails
+      const studentId = String(after.studentId || "");
+      const tutorId = String(after.tutorId || "");
+      const subject = String(after.subject || "");
+      const dateTime = after.dateTime?.toDate?.() || new Date();
+      const dateStr = dateTime.toLocaleString("en-EG", { timeZone: "Africa/Cairo" });
+
+      const [studentDoc, tutorDoc] = await Promise.all([
+        admin.firestore().collection("users").doc(studentId).get(),
+        admin.firestore().collection("tutors").doc(tutorId).get(),
+      ]);
+
+      const studentEmail = studentDoc.get("email") || "";
+      const studentName = studentDoc.get("name") || "Student";
+      const tutorEmail = tutorDoc.get("email") || "";
+      const tutorName = tutorDoc.get("name") || "Tutor";
+
+      logger.info("Email details", { 
+  studentEmail, 
+  tutorEmail,
+  studentId,
+  tutorId,
+  studentExists: studentDoc.exists,
+  tutorExists: tutorDoc.exists,
+});
+
+      const emailHtml = (recipientName) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #4051B5;">Your Zelp Session is Confirmed! ✅</h2>
+          <p>Hi ${recipientName},</p>
+          <p>Your tutoring session has been approved. Here are the details:</p>
+          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+            <tr>
+              <td style="padding: 8px; color: #64748B;">Subject</td>
+              <td style="padding: 8px; font-weight: bold;">${subject}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; color: #64748B;">Date & Time</td>
+              <td style="padding: 8px; font-weight: bold;">${dateStr}</td>
+            </tr>
+            <tr>
+              <td style="padding: 8px; color: #64748B;">Tutor</td>
+              <td style="padding: 8px; font-weight: bold;">${tutorName}</td>
+            </tr>
+          </table>
+          <a href="${meetLink}" 
+             style="display: inline-block; background: #4051B5; color: white; 
+                    padding: 14px 28px; border-radius: 8px; text-decoration: none; 
+                    font-weight: bold; font-size: 16px; margin: 20px 0;">
+            Join Session
+          </a>
+          <p style="color: #64748B; font-size: 12px;">
+            Or copy this link: ${meetLink}
+          </p>
+          <p style="color: #64748B;">See you in the session!<br/>The Zelp Team</p>
+        </div>
+      `;
+
+      const db = admin.firestore();
+
+      // Send to student
+      if (studentEmail) {
+        await db.collection("mail").add({
+          to: studentEmail,
+          message: {
+            subject: `Your Zelp session for ${subject} is confirmed!`,
+            html: emailHtml(studentName),
+          },
+        });
+      }
+
+      // Send to tutor
+      if (tutorEmail) {
+        await db.collection("mail").add({
+          to: tutorEmail,
+          message: {
+            subject: `Upcoming Zelp session for ${subject}`,
+            html: emailHtml(tutorName),
+          },
+        });
+      }
+
+      logger.info("Session emails sent", { sessionId, studentEmail, tutorEmail });
+    } catch (error) {
+      logger.error("Failed to generate Meet link", { sessionId, error });
+    }
+  }
+);
 
 async function getUserTokens(userId) {
   if (!userId) return [];
