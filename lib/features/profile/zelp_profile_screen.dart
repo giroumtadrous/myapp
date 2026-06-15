@@ -17,6 +17,7 @@ import '../admin/payout_requests_screen.dart';
 import '../admin/dispute_resolution_screen.dart';
 import '../booking/student_progress_screen.dart';
 import 'student_wallet_screen.dart';
+import 'privacy_settings_screen.dart';
 
 class ZelpProfileScreen extends StatefulWidget {
   const ZelpProfileScreen({super.key});
@@ -514,22 +515,29 @@ class _ZelpProfileScreenState extends State<ZelpProfileScreen> {
                     _SettingsTile(
                       icon: Icons.lock_outline,
                       title: 'Privacy Settings',
-                      onTap: () {},
+                      onTap: () => Navigator.of(context).push(
+                        AppTransitions.slideFromRight(
+                          page: const PrivacySettingsScreen(),
+                        ),
+                      ),
                     ),
                     _SettingsTile(
                       icon: Icons.help_outline,
                       title: 'Help & Support',
-                      onTap: () {},
+                      onTap: () => Navigator.of(context).push(
+                        AppTransitions.slideFromRight(
+                          page: const HelpSupportScreen(),
+                        ),
+                      ),
                     ),
                     _SettingsTile(
                       icon: Icons.info_outline,
                       title: 'About Zelp',
-                      onTap: () {},
-                    ),
-                    _SettingsTile(
-                      icon: Icons.developer_mode,
-                      title: 'Notification Diagnostics',
-                      onTap: () => _showNotificationDiagnostics(context),
+                      onTap: () => Navigator.of(context).push(
+                        AppTransitions.slideFromRight(
+                          page: const AboutZelpScreen(),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 18),
 
