@@ -75,10 +75,11 @@ jobs:
           KEYCHAIN_PASSWORD: temporary_ci_password
         run: |
           KEYCHAIN=build.keychain
+          CERT_PASSWORD_TRIMMED="$(printf '%s' "$CERT_PASSWORD" | tr -d '\r\n')"
           security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN
           security set-keychain-settings -lut 21600 $KEYCHAIN
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN
-          security import distribution.p12 -k $KEYCHAIN -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security import distribution.p12 -k $KEYCHAIN -P "$CERT_PASSWORD_TRIMMED" -T /usr/bin/codesign || security import distribution.p12 -k $KEYCHAIN -T /usr/bin/codesign
           security list-keychains -d user -s $KEYCHAIN login.keychain
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN
 
