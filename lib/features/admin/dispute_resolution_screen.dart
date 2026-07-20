@@ -43,7 +43,7 @@ class _DisputeResolutionScreenState extends State<DisputeResolutionScreen> {
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
-                        value: resolution,
+                        initialValue: resolution,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
                         ),

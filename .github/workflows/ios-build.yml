@@ -1,4 +1,4 @@
-name: "Free iOS Build"
+name: "iOS Build and Deploy"
 
 on:
   push:
@@ -6,9 +6,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build Unsigned IPA
-    runs-on: macos-latest
+  build-and-deploy:
+    name: Build Signed IPA and Upload to App Store Connect
+    runs-on: macos-14
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -40,34 +41,71 @@ jobs:
       - name: Inject GoogleService-Info.plist
         run: |
           PBX_PATH="ios/Runner.xcodeproj/project.pbxproj"
-          
+
           # 1. Clean up any previous failed attempts (Remove our custom ID if it exists)
           sed -i '' '/D73872AD237909A100904033/d' "$PBX_PATH"
           sed -i '' '/D73872AC237909A100904033/d' "$PBX_PATH"
 
           # 2. Add the File Reference to the 'Main Group'
-          # We search for the end of the PBXFileReference section
           sed -i '' '/\/* Begin PBXFileReference section *\//a\'$'\n''		D73872AC237909A100904033 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };' "$PBX_PATH"
 
           # 3. Add the Build File to the Build Resources section
           sed -i '' '/\/* Begin PBXBuildFile section *\//a\'$'\n''		D73872AD237909A100904033 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D73872AC237909A100904033 /* GoogleService-Info.plist */; };' "$PBX_PATH"
 
           # 4. Add it to the actual Resources Build Phase so it gets packaged
-          # This looks for the start of the Resources section and adds our file
           sed -i '' '/\/* Resources *\//a\'$'\n''				D73872AD237909A100904033 /* GoogleService-Info.plist in Resources */,' "$PBX_PATH"
-          
+
           echo "Surgery complete. Project file repaired and Firebase injected."
-      - name: Build iOS App Bundle
-        run: flutter build ios --release --no-codesign
 
-      - name: Package IPA
+      - name: Decode signing certificate
+        env:
+          CERT_P12_BASE64: ${{ secrets.DISTRIBUTION }}
         run: |
-          mkdir -p Payload
-          mv build/ios/iphoneos/Runner.app Payload
-          zip -r YourTutorApp.ipa Payload
+          echo "$CERT_P12_BASE64" | base64 --decode > distribution.p12
 
-      - name: Upload Finished IPA
+      - name: Decode provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.PROVISION }}
+        run: |
+          echo "$PROFILE_BASE64" | base64 --decode > profile.mobileprovision
+
+      - name: Install certificate and profile into keychain
+        env:
+          CERT_PASSWORD: ${{ secrets.DISTPASS }}
+          KEYCHAIN_PASSWORD: temporary_ci_password
+        run: |
+          KEYCHAIN=build.keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN
+          security set-keychain-settings -lut 21600 $KEYCHAIN
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN
+          security import distribution.p12 -k $KEYCHAIN -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s $KEYCHAIN login.keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" $KEYCHAIN
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+
+      - name: Build Signed IPA
+        run: flutter build ipa --release --export-options-plist=ios/ExportOptions.plist
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.ASC_API_KEY_P8 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+
+          xcrun altool --upload-app \
+            --type ios \
+            --file build/ios/ipa/*.ipa \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+
+      - name: Upload IPA Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: my-ios-app
-          path: YourTutorApp.ipa
+          path: build/ios/ipa/*.ipa

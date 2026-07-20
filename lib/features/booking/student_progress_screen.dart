@@ -141,7 +141,7 @@ class _StudentProgressScreenState extends State<StudentProgressScreen> {
                       const SizedBox(width: 10),
                       _StatCard(
                         icon: Icons.timer_outlined,
-                        value: '${(totalMinutes / 60).toStringAsFixed(1)}',
+                        value: (totalMinutes / 60).toStringAsFixed(1),
                         label: 'Hours',
                         color: const Color(0xFF3B82F6),
                         isDark: isDark,

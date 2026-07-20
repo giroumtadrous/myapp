@@ -13,8 +13,6 @@ class PrivacySettingsScreen extends StatefulWidget {
 }
 
 class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
-  bool _allowAnalytics = true;
-  bool _allowNotifications = true;
   bool _isDeleting = false;
 
   Future<void> _deleteAccount(BuildContext context) async {
@@ -815,9 +813,9 @@ class _LegalTile extends StatelessWidget {
   const _LegalTile({
     required this.icon,
     required this.title,
+    required this.subtitle,
     required this.onTap,
     required this.isDark,
-    this.subtitle,
   });
 
   @override

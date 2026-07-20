@@ -274,9 +274,9 @@ class MessagingService {
       'text': text,
       'timestamp': timestamp,
       'isViewed': false,
-      if (imageUrl != null) 'imageUrl': imageUrl,
-      if (documentUrl != null) 'documentUrl': documentUrl,
-      if (documentName != null) 'documentName': documentName,
+      'imageUrl': ?imageUrl,
+      'documentUrl': ?documentUrl,
+      'documentName': ?documentName,
     });
 
     // 2. Update chat metadata and last message stats
