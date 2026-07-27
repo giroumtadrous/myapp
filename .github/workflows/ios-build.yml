@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-deploy:
     name: Build Signed IPA and Upload to App Store Connect
-    runs-on: macos-14
+    runs-on: macos-14x
 
     steps:
       - name: Checkout Repository
@@ -18,7 +18,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          cache: true
+          cache: true 
 
       - name: Install Dependencies
         run: flutter pub get

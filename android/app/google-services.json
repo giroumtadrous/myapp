@@ -1,18 +1,27 @@
 {
   "project_info": {
     "project_number": "347635239568",
+    "firebase_url": "https://fir-8bdb4-default-rtdb.firebaseio.com",
     "project_id": "fir-8bdb4",
     "storage_bucket": "fir-8bdb4.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:347635239568:android:1a5a924ffd3e9dba40a615",
+        "mobilesdk_app_id": "1:347635239568:android:c7bee8cef73c5c9f40a615",
         "android_client_info": {
-          "package_name": "com.example.little_flower_app"
+          "package_name": "com.example.myapp"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "347635239568-8j4num5qp5rvt4m6uu1jtop3d2j0s7gv.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.myapp",
+            "certificate_hash": "c9bf488c911d0c9218828e13529e67485350c424"
+          }
+        },
         {
           "client_id": "347635239568-9gltcnskqbqfjanch12k2f68obcq433n.apps.googleusercontent.com",
           "client_type": 3
@@ -43,20 +52,12 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:347635239568:android:c7bee8cef73c5c9f40a615",
+        "mobilesdk_app_id": "1:347635239568:android:3c935d7cbc63a55740a615",
         "android_client_info": {
-          "package_name": "com.example.myapp"
+          "package_name": "com.giroumtadrous.zelp"
         }
       },
       "oauth_client": [
-        {
-          "client_id": "347635239568-8j4num5qp5rvt4m6uu1jtop3d2j0s7gv.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.myapp",
-            "certificate_hash": "c9bf488c911d0c9218828e13529e67485350c424"
-          }
-        },
         {
           "client_id": "347635239568-9gltcnskqbqfjanch12k2f68obcq433n.apps.googleusercontent.com",
           "client_type": 3
